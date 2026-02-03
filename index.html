@@ -1979,13 +1979,11 @@
         // Categorieën voor filtering
         const CATEGORIEEN = [...new Set(RECEPT_DATABASE.map(r => r.categorie))].sort();
 
-        // Gecombineerde Recepten Component - Inspiratie + Mijn Recepten
+        // Recepten Component - Alle recepten in één overzicht
         function Recepten({ recepten, setRecepten, onSelectRecept }) {
-            const [subTab, setSubTab] = useState('inspiratie');
             const [zoekterm, setZoekterm] = useState('');
-            const [filterCategorie, setFilterCategorie] = useState('Alle');
             const [filterType, setFilterType] = useState('Alle');
-            const [toegevoegd, setToegevoegd] = useState({});
+            const [nieuwReceptOpen, setNieuwReceptOpen] = useState(false);
             const [nieuwRecept, setNieuwRecept] = useState({ naam: '', ingredienten: '' });
             const [bewerkRecept, setBewerkRecept] = useState(null);
 
@@ -1995,66 +1993,39 @@
                 'Vlees': { icon: '🥩', color: 'bg-fb-terracotta/20 text-fb-wine', activeColor: 'bg-fb-terracotta text-white' },
                 'Vis': { icon: '🐟', color: 'bg-fb-skylight text-fb-hague', activeColor: 'bg-fb-duck text-white' },
                 'Vegetarisch': { icon: '🥬', color: 'bg-fb-mint text-fb-forest', activeColor: 'bg-fb-olive text-white' },
-                'Vegan': { icon: '🌱', color: 'bg-fb-sage/40 text-fb-calke', activeColor: 'bg-fb-calke text-white' }
+                'Vegan': { icon: '🌱', color: 'bg-fb-sage/40 text-fb-calke', activeColor: 'bg-fb-calke text-white' },
+                'Eigen': { icon: '📝', color: 'bg-fb-pale/40 text-fb-hague', activeColor: 'bg-fb-hague text-white' }
             };
 
-            // Check welke recepten al zijn toegevoegd
-            const isToegevoegd = (dbRecept) => {
-                return recepten.some(r => r.naam.toLowerCase() === dbRecept.naam.toLowerCase()) || toegevoegd[dbRecept.id];
-            };
+            // Combineer database recepten met eigen recepten
+            const eigenRecepten = recepten.map(r => ({
+                ...r,
+                type: 'Eigen',
+                categorie: 'Eigen',
+                bereidingstijd: '-',
+                isEigen: true
+            }));
 
-            const handleToevoegen = (dbRecept) => {
-                if (isToegevoegd(dbRecept)) return;
+            const alleRecepten = [...RECEPT_DATABASE, ...eigenRecepten];
 
-                const nieuwRecept = {
-                    id: Date.now(),
-                    naam: dbRecept.naam,
-                    ingredienten: [...dbRecept.ingredienten]
-                };
-
-                setRecepten(prev => [...prev, nieuwRecept]);
-                setToegevoegd(prev => ({ ...prev, [dbRecept.id]: true }));
-            };
-
-            const handleVerwijderen = (dbRecept) => {
-                // Verwijder uit "Mijn Recepten" op basis van naam
-                setRecepten(prev => prev.filter(r => r.naam.toLowerCase() !== dbRecept.naam.toLowerCase()));
-                // Reset de toegevoegd status
-                setToegevoegd(prev => ({ ...prev, [dbRecept.id]: false }));
-            };
-
-            const handleAlleToevoegen = () => {
-                const nieuweRecepten = gefilterd
-                    .filter(dbRecept => !isToegevoegd(dbRecept))
-                    .map(dbRecept => ({
-                        id: Date.now() + Math.random(),
-                        naam: dbRecept.naam,
-                        ingredienten: [...dbRecept.ingredienten]
-                    }));
-
-                if (nieuweRecepten.length > 0) {
-                    setRecepten(prev => [...prev, ...nieuweRecepten]);
-                    const newToegevoegd = { ...toegevoegd };
-                    gefilterd.forEach(r => newToegevoegd[r.id] = true);
-                    setToegevoegd(newToegevoegd);
-                }
-            };
-
-            const gefilterd = RECEPT_DATABASE.filter(recept => {
+            // Filter recepten
+            const gefilterd = alleRecepten.filter(recept => {
                 const matchZoek = recept.naam.toLowerCase().includes(zoekterm.toLowerCase()) ||
                     recept.ingredienten.some(i => i.toLowerCase().includes(zoekterm.toLowerCase()));
-                const matchCategorie = filterCategorie === 'Alle' || recept.categorie === filterCategorie;
                 const matchType = filterType === 'Alle' || recept.type === filterType;
-                return matchZoek && matchCategorie && matchType;
+                return matchZoek && matchType;
             });
 
             // Tel recepten per type
-            const typeCounts = TYPES.reduce((acc, type) => {
-                acc[type] = RECEPT_DATABASE.filter(r => r.type === type).length;
-                return acc;
-            }, {});
+            const typeCounts = {
+                ...TYPES.reduce((acc, type) => {
+                    acc[type] = RECEPT_DATABASE.filter(r => r.type === type).length;
+                    return acc;
+                }, {}),
+                'Eigen': eigenRecepten.length
+            };
 
-            // Functies voor Mijn Recepten
+            // Nieuw eigen recept toevoegen
             const handleNieuwToevoegen = () => {
                 if (!nieuwRecept.naam.trim()) return;
 
@@ -2071,12 +2042,15 @@
 
                 setRecepten(prev => [...prev, recept]);
                 setNieuwRecept({ naam: '', ingredienten: '' });
+                setNieuwReceptOpen(false);
             };
 
+            // Eigen recept verwijderen
             const handleReceptVerwijderen = (id) => {
                 setRecepten(prev => prev.filter(r => r.id !== id));
             };
 
+            // Recept bewerken
             const handleBewerken = (recept) => {
                 setBewerkRecept({
                     ...recept,
@@ -2105,36 +2079,53 @@
                     <h2 className="text-2xl font-bold text-fb-hague mb-2 flex items-center gap-2">
                         <span>📖</span> Recepten
                     </h2>
-
-                    {/* Sub-tabs */}
-                    <div className="flex gap-2 mb-6 bg-fb-beige/50 rounded-lg p-1">
-                        <button
-                            onClick={() => setSubTab('inspiratie')}
-                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                                subTab === 'inspiratie'
-                                    ? 'bg-white text-fb-hague shadow-sm'
-                                    : 'text-fb-hague/60 hover:text-fb-hague'
-                            }`}
-                        >
-                            <span>💡</span> Inspiratie
-                        </button>
-                        <button
-                            onClick={() => setSubTab('mijn')}
-                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                                subTab === 'mijn'
-                                    ? 'bg-white text-fb-hague shadow-sm'
-                                    : 'text-fb-hague/60 hover:text-fb-hague'
-                            }`}
-                        >
-                            <span>📝</span> Mijn Recepten ({recepten.length})
-                        </button>
-                    </div>
-
-                    {subTab === 'inspiratie' && (
-                    <>
                     <p className="text-fb-hague/70 mb-4">
-                        Kies uit {RECEPT_DATABASE.length} gezonde familierecepten en voeg ze toe aan je collectie.
+                        Kies een recept en voeg het toe aan je weekplanner. ({alleRecepten.length} recepten)
                     </p>
+
+                    {/* Nieuw recept toevoegen knop */}
+                    <div className="mb-4">
+                        {!nieuwReceptOpen ? (
+                            <button
+                                onClick={() => setNieuwReceptOpen(true)}
+                                className="bg-fb-olive hover:bg-fb-forest text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+                            >
+                                + Eigen recept toevoegen
+                            </button>
+                        ) : (
+                            <div className="bg-fb-mint/30 rounded-xl p-4 border border-fb-sage/30">
+                                <h3 className="font-semibold text-fb-forest mb-3">Nieuw recept toevoegen</h3>
+                                <input
+                                    type="text"
+                                    value={nieuwRecept.naam}
+                                    onChange={(e) => setNieuwRecept(prev => ({ ...prev, naam: e.target.value }))}
+                                    placeholder="Naam van het recept..."
+                                    className="w-full px-4 py-2 rounded-lg border border-fb-sage/50 bg-white focus:border-fb-olive focus:ring-2 focus:ring-fb-sage/30 outline-none mb-3"
+                                />
+                                <textarea
+                                    value={nieuwRecept.ingredienten}
+                                    onChange={(e) => setNieuwRecept(prev => ({ ...prev, ingredienten: e.target.value }))}
+                                    placeholder="Ingrediënten (één per regel)..."
+                                    rows={4}
+                                    className="w-full px-4 py-2 rounded-lg border border-fb-sage/50 bg-white focus:border-fb-olive focus:ring-2 focus:ring-fb-sage/30 outline-none mb-3 resize-none"
+                                />
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={handleNieuwToevoegen}
+                                        className="bg-fb-olive hover:bg-fb-forest text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+                                    >
+                                        + Toevoegen
+                                    </button>
+                                    <button
+                                        onClick={() => {setNieuwReceptOpen(false); setNieuwRecept({ naam: '', ingredienten: '' });}}
+                                        className="bg-fb-stone/50 hover:bg-fb-stone text-fb-hague px-4 py-2 rounded-lg font-medium transition-colors"
+                                    >
+                                        Annuleren
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
                     {/* Type filter buttons */}
                     <div className="flex flex-wrap gap-2 mb-4">
@@ -2146,7 +2137,7 @@
                                     : 'bg-fb-beige text-fb-hague hover:bg-fb-stone'
                             }`}
                         >
-                            Alles ({RECEPT_DATABASE.length})
+                            Alles ({alleRecepten.length})
                         </button>
                         {TYPES.map(type => (
                             <button
@@ -2161,121 +2152,156 @@
                                 {typeConfig[type].icon} {type} ({typeCounts[type]})
                             </button>
                         ))}
+                        {eigenRecepten.length > 0 && (
+                            <button
+                                onClick={() => setFilterType('Eigen')}
+                                className={`px-3 py-2 rounded-lg text-sm transition-all flex items-center gap-1 ${
+                                    filterType === 'Eigen'
+                                        ? typeConfig['Eigen'].activeColor
+                                        : typeConfig['Eigen'].color + ' hover:opacity-80'
+                                }`}
+                            >
+                                {typeConfig['Eigen'].icon} Eigen ({typeCounts['Eigen']})
+                            </button>
+                        )}
                     </div>
 
-                    {/* Zoek en filter */}
-                    <div className="flex flex-col sm:flex-row gap-3 mb-6">
-                        <div className="flex-1">
-                            <input
-                                type="text"
-                                value={zoekterm}
-                                onChange={(e) => setZoekterm(e.target.value)}
-                                placeholder="Zoek op naam of ingrediënt..."
-                                className="w-full px-4 py-2 rounded-lg border border-fb-stone bg-white focus:border-fb-duck focus:ring-2 focus:ring-fb-skylight outline-none text-fb-deep"
-                            />
-                        </div>
-                        <select
-                            value={filterCategorie}
-                            onChange={(e) => setFilterCategorie(e.target.value)}
-                            className="px-4 py-2 rounded-lg border border-fb-stone focus:border-fb-duck outline-none bg-white text-fb-deep"
-                        >
-                            <option value="Alle">Alle categorieën</option>
-                            {CATEGORIEEN.map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                        </select>
+                    {/* Zoekbalk */}
+                    <div className="mb-6">
+                        <input
+                            type="text"
+                            value={zoekterm}
+                            onChange={(e) => setZoekterm(e.target.value)}
+                            placeholder="Zoek op naam of ingrediënt..."
+                            className="w-full px-4 py-2 rounded-lg border border-fb-stone bg-white focus:border-fb-duck focus:ring-2 focus:ring-fb-skylight outline-none text-fb-deep"
+                        />
                     </div>
 
-                    {/* Alle toevoegen knop */}
-                    <div className="mb-6 flex items-center gap-4">
-                        <button
-                            onClick={handleAlleToevoegen}
-                            className="bg-fb-olive hover:bg-fb-forest text-fb-cream px-4 py-2 rounded-lg transition-all shadow-md"
-                        >
-                            {filterType === 'Alle' && filterCategorie === 'Alle' ? 'Alle' : 'Gefilterde'} recepten toevoegen ({gefilterd.filter(r => !isToegevoegd(r)).length})
-                        </button>
-                        <span className="text-sm text-fb-hague/60">
-                            {gefilterd.length} {gefilterd.length === 1 ? 'recept' : 'recepten'} gevonden
-                        </span>
-                    </div>
+                    <p className="text-sm text-fb-hague/60 mb-4">
+                        {gefilterd.length} {gefilterd.length === 1 ? 'recept' : 'recepten'} gevonden
+                    </p>
 
                     {/* Recepten grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {gefilterd.map(recept => (
                             <div
-                                key={recept.id}
-                                className={`border rounded-xl p-4 transition-all ${
-                                    isToegevoegd(recept)
-                                        ? 'border-fb-sage bg-fb-mint/30'
-                                        : 'border-fb-stone/50 bg-white hover:border-fb-sage hover:shadow-md'
-                                }`}
+                                key={recept.isEigen ? `eigen-${recept.id}` : recept.id}
+                                className="border rounded-xl p-4 transition-all border-fb-stone/50 bg-white hover:border-fb-sage hover:shadow-md"
                             >
                                 <div className="flex justify-between items-start mb-2">
-                                    <div>
+                                    <div className="flex-1">
                                         <h4 className="font-serif text-lg text-fb-deep">{recept.naam}</h4>
                                         <div className="flex flex-wrap gap-2 mt-1">
                                             <span className={`text-xs px-2 py-1 rounded-full ${typeConfig[recept.type]?.color || 'bg-fb-beige text-fb-hague'}`}>
                                                 {typeConfig[recept.type]?.icon} {recept.type}
                                             </span>
-                                            <span className="text-xs bg-fb-skylight text-fb-hague px-2 py-1 rounded-full">
-                                                {recept.categorie}
-                                            </span>
-                                            <span className="text-xs bg-fb-sand/40 text-fb-deep px-2 py-1 rounded-full">
-                                                ⏱️ {recept.bereidingstijd}
-                                            </span>
+                                            {recept.categorie && recept.categorie !== 'Eigen' && (
+                                                <span className="text-xs bg-fb-skylight text-fb-hague px-2 py-1 rounded-full">
+                                                    {recept.categorie}
+                                                </span>
+                                            )}
+                                            {recept.bereidingstijd && recept.bereidingstijd !== '-' && (
+                                                <span className="text-xs bg-fb-sand/40 text-fb-deep px-2 py-1 rounded-full">
+                                                    ⏱️ {recept.bereidingstijd}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
-                                    {isToegevoegd(recept) ? (
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-fb-forest text-sm">✓</span>
-                                            <button
-                                                onClick={() => handleVerwijderen(recept)}
-                                                className="bg-fb-terracotta/20 hover:bg-fb-terracotta/40 text-fb-wine px-2 py-1 rounded-lg text-xs transition-colors"
-                                                title="Verwijder uit mijn recepten"
-                                            >
-                                                Verwijderen
-                                            </button>
-                                        </div>
-                                    ) : (
+                                    <div className="flex items-center gap-1 ml-2">
                                         <button
-                                            onClick={() => handleToevoegen(recept)}
-                                            className="bg-fb-olive hover:bg-fb-forest text-fb-cream px-3 py-1 rounded-lg text-sm transition-colors"
+                                            onClick={() => onSelectRecept(recept.naam)}
+                                            className="bg-fb-olive hover:bg-fb-forest text-white px-3 py-1 rounded-lg text-sm transition-colors"
+                                            title="Toevoegen aan weekplanner"
                                         >
-                                            + Toevoegen
+                                            📅 Inplannen
                                         </button>
-                                    )}
+                                        {recept.isEigen && (
+                                            <>
+                                                <button
+                                                    onClick={() => handleBewerken(recept)}
+                                                    className="text-fb-duck hover:bg-fb-skylight px-2 py-1 rounded text-sm transition-colors"
+                                                    title="Bewerken"
+                                                >
+                                                    ✏️
+                                                </button>
+                                                <button
+                                                    onClick={() => handleReceptVerwijderen(recept.id)}
+                                                    className="text-fb-wine hover:bg-fb-terracotta/20 px-2 py-1 rounded text-sm transition-colors"
+                                                    title="Verwijderen"
+                                                >
+                                                    🗑️
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
 
-                                <details className="mt-3">
-                                    <summary className="text-sm text-fb-duck cursor-pointer hover:text-fb-hague">
-                                        Bekijk ingrediënten ({recept.ingredienten.length})
-                                    </summary>
-                                    <ul className="mt-2 text-sm text-fb-hague/80 space-y-1 pl-2">
-                                        {recept.ingredienten.map((ingredient, idx) => (
-                                            <li key={idx} className="flex items-center gap-2">
-                                                <span className="text-fb-sage text-xs">●</span>
-                                                {ingredient}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </details>
+                                {/* Bewerk formulier */}
+                                {bewerkRecept?.id === recept.id && recept.isEigen && (
+                                    <div className="mt-3 p-3 bg-fb-beige/50 rounded-lg">
+                                        <input
+                                            type="text"
+                                            value={bewerkRecept.naam}
+                                            onChange={(e) => setBewerkRecept(prev => ({ ...prev, naam: e.target.value }))}
+                                            className="w-full px-3 py-2 rounded-lg border border-fb-sage focus:border-fb-olive outline-none mb-2"
+                                        />
+                                        <textarea
+                                            value={bewerkRecept.ingredienten}
+                                            onChange={(e) => setBewerkRecept(prev => ({ ...prev, ingredienten: e.target.value }))}
+                                            rows={4}
+                                            className="w-full px-3 py-2 rounded-lg border border-fb-sage focus:border-fb-olive outline-none resize-none mb-2"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={handleOpslaanBewerking}
+                                                className="bg-fb-olive hover:bg-fb-forest text-white px-3 py-1 rounded-lg text-sm"
+                                            >
+                                                Opslaan
+                                            </button>
+                                            <button
+                                                onClick={() => setBewerkRecept(null)}
+                                                className="bg-fb-stone/50 hover:bg-fb-stone text-fb-hague px-3 py-1 rounded-lg text-sm"
+                                            >
+                                                Annuleren
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
 
-                                {recept.bereiding && (
-                                    <details className="mt-2">
-                                        <summary className="text-sm text-fb-hague cursor-pointer hover:text-fb-deep">
-                                            👨‍🍳 Bekijk bereidingswijze ({recept.bereiding.length} stappen)
-                                        </summary>
-                                        <ol className="mt-2 text-sm text-fb-hague/80 space-y-2 pl-2">
-                                            {recept.bereiding.map((stap, idx) => (
-                                                <li key={idx} className="flex gap-2">
-                                                    <span className="bg-fb-skylight text-fb-hague rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
-                                                        {idx + 1}
-                                                    </span>
-                                                    <span>{stap}</span>
-                                                </li>
-                                            ))}
-                                        </ol>
-                                    </details>
+                                {bewerkRecept?.id !== recept.id && (
+                                    <>
+                                        <details className="mt-3">
+                                            <summary className="text-sm text-fb-duck cursor-pointer hover:text-fb-hague">
+                                                Bekijk ingrediënten ({recept.ingredienten.length})
+                                            </summary>
+                                            <ul className="mt-2 text-sm text-fb-hague/80 space-y-1 pl-2">
+                                                {recept.ingredienten.map((ingredient, idx) => (
+                                                    <li key={idx} className="flex items-center gap-2">
+                                                        <span className="text-fb-sage text-xs">●</span>
+                                                        {ingredient}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </details>
+
+                                        {recept.bereiding && (
+                                            <details className="mt-2">
+                                                <summary className="text-sm text-fb-hague cursor-pointer hover:text-fb-deep">
+                                                    👨‍🍳 Bekijk bereidingswijze ({recept.bereiding.length} stappen)
+                                                </summary>
+                                                <ol className="mt-2 text-sm text-fb-hague/80 space-y-2 pl-2">
+                                                    {recept.bereiding.map((stap, idx) => (
+                                                        <li key={idx} className="flex gap-2">
+                                                            <span className="bg-fb-skylight text-fb-hague rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+                                                                {idx + 1}
+                                                            </span>
+                                                            <span>{stap}</span>
+                                                        </li>
+                                                    ))}
+                                                </ol>
+                                            </details>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         ))}
@@ -2283,116 +2309,8 @@
 
                     {gefilterd.length === 0 && (
                         <div className="text-center py-8 text-fb-hague/60">
-                            Geen recepten gevonden. Probeer een andere zoekterm of categorie.
+                            Geen recepten gevonden. Probeer een andere zoekterm of filter.
                         </div>
-                    )}
-                    </>
-                    )}
-
-                    {subTab === 'mijn' && (
-                    <>
-                    {/* Nieuw recept formulier */}
-                    <div className="bg-fb-mint/30 rounded-xl p-4 mb-6 border border-fb-sage/30">
-                        <h3 className="font-semibold text-fb-forest mb-3">Nieuw recept toevoegen</h3>
-                        <input
-                            type="text"
-                            value={nieuwRecept.naam}
-                            onChange={(e) => setNieuwRecept(prev => ({ ...prev, naam: e.target.value }))}
-                            placeholder="Naam van het recept..."
-                            className="w-full px-4 py-2 rounded-lg border border-fb-sage/50 bg-white focus:border-fb-olive focus:ring-2 focus:ring-fb-sage/30 outline-none mb-3"
-                        />
-                        <textarea
-                            value={nieuwRecept.ingredienten}
-                            onChange={(e) => setNieuwRecept(prev => ({ ...prev, ingredienten: e.target.value }))}
-                            placeholder="Ingrediënten (één per regel)..."
-                            rows={4}
-                            className="w-full px-4 py-2 rounded-lg border border-fb-sage/50 bg-white focus:border-fb-olive focus:ring-2 focus:ring-fb-sage/30 outline-none mb-3 resize-none"
-                        />
-                        <button
-                            onClick={handleNieuwToevoegen}
-                            className="bg-fb-olive hover:bg-fb-forest text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
-                        >
-                            + Recept toevoegen
-                        </button>
-                    </div>
-
-                    {/* Recepten lijst */}
-                    {recepten.length === 0 ? (
-                        <p className="text-fb-hague/60 italic">Nog geen recepten opgeslagen. Voeg je eigen recepten toe of kies uit de Inspiratie tab.</p>
-                    ) : (
-                        <div className="space-y-3">
-                            {recepten.map(recept => (
-                                <div key={recept.id} className="border border-fb-stone/50 bg-white/50 rounded-xl p-4 hover:shadow-md hover:border-fb-sage transition-all">
-                                    {bewerkRecept?.id === recept.id ? (
-                                        <div className="space-y-3">
-                                            <input
-                                                type="text"
-                                                value={bewerkRecept.naam}
-                                                onChange={(e) => setBewerkRecept(prev => ({ ...prev, naam: e.target.value }))}
-                                                className="w-full px-3 py-2 rounded-lg border border-fb-sage focus:border-fb-olive outline-none"
-                                            />
-                                            <textarea
-                                                value={bewerkRecept.ingredienten}
-                                                onChange={(e) => setBewerkRecept(prev => ({ ...prev, ingredienten: e.target.value }))}
-                                                rows={4}
-                                                className="w-full px-3 py-2 rounded-lg border border-fb-sage focus:border-fb-olive outline-none resize-none"
-                                            />
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={handleOpslaanBewerking}
-                                                    className="bg-fb-olive hover:bg-fb-forest text-white px-3 py-1 rounded-lg text-sm"
-                                                >
-                                                    Opslaan
-                                                </button>
-                                                <button
-                                                    onClick={() => setBewerkRecept(null)}
-                                                    className="bg-fb-stone/50 hover:bg-fb-stone text-fb-hague px-3 py-1 rounded-lg text-sm"
-                                                >
-                                                    Annuleren
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-serif font-semibold text-lg text-fb-hague">{recept.naam}</h4>
-                                                <div className="flex gap-1">
-                                                    <button
-                                                        onClick={() => onSelectRecept(recept.naam)}
-                                                        className="text-fb-olive hover:bg-fb-mint px-2 py-1 rounded text-sm transition-colors"
-                                                        title="Gebruik in planner"
-                                                    >
-                                                        📅
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleBewerken(recept)}
-                                                        className="text-fb-duck hover:bg-fb-skylight px-2 py-1 rounded text-sm transition-colors"
-                                                    >
-                                                        ✏️
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleReceptVerwijderen(recept.id)}
-                                                        className="text-fb-wine hover:bg-fb-terracotta/20 px-2 py-1 rounded text-sm transition-colors"
-                                                    >
-                                                        🗑️
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <ul className="text-sm text-fb-hague/70 space-y-1">
-                                                {recept.ingredienten.map((ingredient, idx) => (
-                                                    <li key={idx} className="flex items-center gap-2">
-                                                        <span className="text-fb-olive">•</span>
-                                                        {ingredient}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                    </>
                     )}
                 </div>
             );
