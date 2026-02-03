@@ -1986,6 +1986,20 @@
             const [nieuwReceptOpen, setNieuwReceptOpen] = useState(false);
             const [nieuwRecept, setNieuwRecept] = useState({ naam: '', ingredienten: '' });
             const [bewerkRecept, setBewerkRecept] = useState(null);
+            const [verborgenRecepten, setVerborgenRecepten] = useState(() => {
+                const saved = localStorage.getItem('verborgenRecepten');
+                return saved ? JSON.parse(saved) : [];
+            });
+
+            // Sla verborgen recepten op in localStorage
+            useEffect(() => {
+                localStorage.setItem('verborgenRecepten', JSON.stringify(verborgenRecepten));
+            }, [verborgenRecepten]);
+
+            // Verwijder database recept uit de lijst (verberg het)
+            const handleVerwijderUitLijst = (recept) => {
+                setVerborgenRecepten(prev => [...prev, recept.id]);
+            };
 
             // Type iconen en kleuren (Farrow & Ball inspired)
             const typeConfig = {
@@ -2006,7 +2020,9 @@
                 isEigen: true
             }));
 
-            const alleRecepten = [...RECEPT_DATABASE, ...eigenRecepten];
+            // Filter verborgen database recepten uit
+            const zichtbareDbRecepten = RECEPT_DATABASE.filter(r => !verborgenRecepten.includes(r.id));
+            const alleRecepten = [...zichtbareDbRecepten, ...eigenRecepten];
 
             // Filter recepten
             const gefilterd = alleRecepten.filter(recept => {
@@ -2016,10 +2032,10 @@
                 return matchZoek && matchType;
             });
 
-            // Tel recepten per type
+            // Tel recepten per type (exclusief verborgen)
             const typeCounts = {
                 ...TYPES.reduce((acc, type) => {
-                    acc[type] = RECEPT_DATABASE.filter(r => r.type === type).length;
+                    acc[type] = zichtbareDbRecepten.filter(r => r.type === type).length;
                     return acc;
                 }, {}),
                 'Eigen': eigenRecepten.length
@@ -2216,23 +2232,21 @@
                                             📅 Inplannen
                                         </button>
                                         {recept.isEigen && (
-                                            <>
-                                                <button
-                                                    onClick={() => handleBewerken(recept)}
-                                                    className="text-fb-duck hover:bg-fb-skylight px-2 py-1 rounded text-sm transition-colors"
-                                                    title="Bewerken"
-                                                >
-                                                    ✏️
-                                                </button>
-                                                <button
-                                                    onClick={() => handleReceptVerwijderen(recept.id)}
-                                                    className="text-fb-wine hover:bg-fb-terracotta/20 px-2 py-1 rounded text-sm transition-colors"
-                                                    title="Verwijderen"
-                                                >
-                                                    🗑️
-                                                </button>
-                                            </>
+                                            <button
+                                                onClick={() => handleBewerken(recept)}
+                                                className="text-fb-duck hover:bg-fb-skylight px-2 py-1 rounded text-sm transition-colors"
+                                                title="Bewerken"
+                                            >
+                                                ✏️
+                                            </button>
                                         )}
+                                        <button
+                                            onClick={() => recept.isEigen ? handleReceptVerwijderen(recept.id) : handleVerwijderUitLijst(recept)}
+                                            className="text-fb-wine hover:bg-fb-terracotta/20 px-2 py-1 rounded text-sm transition-colors"
+                                            title="Verwijderen"
+                                        >
+                                            🗑️
+                                        </button>
                                     </div>
                                 </div>
 
