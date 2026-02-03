@@ -1979,12 +1979,15 @@
         // Categorieën voor filtering
         const CATEGORIEEN = [...new Set(RECEPT_DATABASE.map(r => r.categorie))].sort();
 
-        // Inspiratie Component - Database met kant-en-klare recepten
-        function Inspiratie({ recepten, setRecepten, onSelectRecept }) {
+        // Gecombineerde Recepten Component - Inspiratie + Mijn Recepten
+        function Recepten({ recepten, setRecepten, onSelectRecept }) {
+            const [subTab, setSubTab] = useState('inspiratie');
             const [zoekterm, setZoekterm] = useState('');
             const [filterCategorie, setFilterCategorie] = useState('Alle');
             const [filterType, setFilterType] = useState('Alle');
             const [toegevoegd, setToegevoegd] = useState({});
+            const [nieuwRecept, setNieuwRecept] = useState({ naam: '', ingredienten: '' });
+            const [bewerkRecept, setBewerkRecept] = useState(null);
 
             // Type iconen en kleuren (Farrow & Ball inspired)
             const typeConfig = {
@@ -2051,11 +2054,84 @@
                 return acc;
             }, {});
 
+            // Functies voor Mijn Recepten
+            const handleNieuwToevoegen = () => {
+                if (!nieuwRecept.naam.trim()) return;
+
+                const ingredientenLijst = nieuwRecept.ingredienten
+                    .split('\n')
+                    .map(i => i.trim())
+                    .filter(i => i);
+
+                const recept = {
+                    id: Date.now(),
+                    naam: nieuwRecept.naam.trim(),
+                    ingredienten: ingredientenLijst
+                };
+
+                setRecepten(prev => [...prev, recept]);
+                setNieuwRecept({ naam: '', ingredienten: '' });
+            };
+
+            const handleReceptVerwijderen = (id) => {
+                setRecepten(prev => prev.filter(r => r.id !== id));
+            };
+
+            const handleBewerken = (recept) => {
+                setBewerkRecept({
+                    ...recept,
+                    ingredienten: recept.ingredienten.join('\n')
+                });
+            };
+
+            const handleOpslaanBewerking = () => {
+                if (!bewerkRecept.naam.trim()) return;
+
+                const ingredientenLijst = bewerkRecept.ingredienten
+                    .split('\n')
+                    .map(i => i.trim())
+                    .filter(i => i);
+
+                setRecepten(prev => prev.map(r =>
+                    r.id === bewerkRecept.id
+                        ? { ...r, naam: bewerkRecept.naam.trim(), ingredienten: ingredientenLijst }
+                        : r
+                ));
+                setBewerkRecept(null);
+            };
+
             return (
                 <div className="bg-fb-cream rounded-2xl shadow-lg p-6 border border-fb-stone/30">
                     <h2 className="text-2xl font-bold text-fb-hague mb-2 flex items-center gap-2">
-                        <span>💡</span> Recepten Inspiratie
+                        <span>📖</span> Recepten
                     </h2>
+
+                    {/* Sub-tabs */}
+                    <div className="flex gap-2 mb-6 bg-fb-beige/50 rounded-lg p-1">
+                        <button
+                            onClick={() => setSubTab('inspiratie')}
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                subTab === 'inspiratie'
+                                    ? 'bg-white text-fb-hague shadow-sm'
+                                    : 'text-fb-hague/60 hover:text-fb-hague'
+                            }`}
+                        >
+                            <span>💡</span> Inspiratie
+                        </button>
+                        <button
+                            onClick={() => setSubTab('mijn')}
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                subTab === 'mijn'
+                                    ? 'bg-white text-fb-hague shadow-sm'
+                                    : 'text-fb-hague/60 hover:text-fb-hague'
+                            }`}
+                        >
+                            <span>📝</span> Mijn Recepten ({recepten.length})
+                        </button>
+                    </div>
+
+                    {subTab === 'inspiratie' && (
+                    <>
                     <p className="text-fb-hague/70 mb-4">
                         Kies uit {RECEPT_DATABASE.length} gezonde familierecepten en voeg ze toe aan je collectie.
                     </p>
@@ -2210,66 +2286,11 @@
                             Geen recepten gevonden. Probeer een andere zoekterm of categorie.
                         </div>
                     )}
-                </div>
-            );
-        }
+                    </>
+                    )}
 
-        // Recepten Component
-        function ReceptenBeheer({ recepten, setRecepten, onSelectRecept }) {
-            const [nieuwRecept, setNieuwRecept] = useState({ naam: '', ingredienten: '' });
-            const [bewerkRecept, setBewerkRecept] = useState(null);
-
-            const handleToevoegen = () => {
-                if (!nieuwRecept.naam.trim()) return;
-
-                const ingredientenLijst = nieuwRecept.ingredienten
-                    .split('\n')
-                    .map(i => i.trim())
-                    .filter(i => i);
-
-                const recept = {
-                    id: Date.now(),
-                    naam: nieuwRecept.naam.trim(),
-                    ingredienten: ingredientenLijst
-                };
-
-                setRecepten(prev => [...prev, recept]);
-                setNieuwRecept({ naam: '', ingredienten: '' });
-            };
-
-            const handleVerwijderen = (id) => {
-                setRecepten(prev => prev.filter(r => r.id !== id));
-            };
-
-            const handleBewerken = (recept) => {
-                setBewerkRecept({
-                    ...recept,
-                    ingredienten: recept.ingredienten.join('\n')
-                });
-            };
-
-            const handleOpslaanBewerking = () => {
-                if (!bewerkRecept.naam.trim()) return;
-
-                const ingredientenLijst = bewerkRecept.ingredienten
-                    .split('\n')
-                    .map(i => i.trim())
-                    .filter(i => i);
-
-                setRecepten(prev => prev.map(r =>
-                    r.id === bewerkRecept.id
-                        ? { ...r, naam: bewerkRecept.naam.trim(), ingredienten: ingredientenLijst }
-                        : r
-                ));
-                setBewerkRecept(null);
-            };
-
-            return (
-                <div className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-6 border border-fb-stone/30">
-                    <h2 className="font-serif text-2xl font-bold text-fb-hague mb-4 flex items-center gap-2">
-                        <span>📖</span> Recepten
-                    </h2>
-
+                    {subTab === 'mijn' && (
+                    <>
                     {/* Nieuw recept formulier */}
                     <div className="bg-fb-mint/30 rounded-xl p-4 mb-6 border border-fb-sage/30">
                         <h3 className="font-semibold text-fb-forest mb-3">Nieuw recept toevoegen</h3>
@@ -2288,7 +2309,7 @@
                             className="w-full px-4 py-2 rounded-lg border border-fb-sage/50 bg-white focus:border-fb-olive focus:ring-2 focus:ring-fb-sage/30 outline-none mb-3 resize-none"
                         />
                         <button
-                            onClick={handleToevoegen}
+                            onClick={handleNieuwToevoegen}
                             className="bg-fb-olive hover:bg-fb-forest text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
                         >
                             + Recept toevoegen
@@ -2297,7 +2318,7 @@
 
                     {/* Recepten lijst */}
                     {recepten.length === 0 ? (
-                        <p className="text-fb-hague/60 italic">Nog geen recepten opgeslagen.</p>
+                        <p className="text-fb-hague/60 italic">Nog geen recepten opgeslagen. Voeg je eigen recepten toe of kies uit de Inspiratie tab.</p>
                     ) : (
                         <div className="space-y-3">
                             {recepten.map(recept => (
@@ -2350,7 +2371,7 @@
                                                         ✏️
                                                     </button>
                                                     <button
-                                                        onClick={() => handleVerwijderen(recept.id)}
+                                                        onClick={() => handleReceptVerwijderen(recept.id)}
                                                         className="text-fb-wine hover:bg-fb-terracotta/20 px-2 py-1 rounded text-sm transition-colors"
                                                     >
                                                         🗑️
@@ -2370,6 +2391,8 @@
                                 </div>
                             ))}
                         </div>
+                    )}
+                    </>
                     )}
                 </div>
             );
@@ -2601,8 +2624,7 @@
 
             const tabs = [
                 { id: 'planner', label: 'Weekplanner', icon: '📅' },
-                { id: 'inspiratie', label: 'Inspiratie', icon: '💡' },
-                { id: 'recepten', label: 'Mijn Recepten', icon: '📖' },
+                { id: 'recepten', label: 'Recepten', icon: '📖' },
                 { id: 'boodschappen', label: 'Boodschappen', icon: '🛒' }
             ];
 
@@ -2645,15 +2667,8 @@
                                 recepten={recepten}
                             />
                         )}
-                        {activeTab === 'inspiratie' && (
-                            <Inspiratie
-                                recepten={recepten}
-                                setRecepten={setRecepten}
-                                onSelectRecept={handleSelectRecept}
-                            />
-                        )}
                         {activeTab === 'recepten' && (
-                            <ReceptenBeheer
+                            <Recepten
                                 recepten={recepten}
                                 setRecepten={setRecepten}
                                 onSelectRecept={handleSelectRecept}
