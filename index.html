@@ -2977,17 +2977,21 @@
                 localStorage.setItem(STORAGE_KEYS.recepten, JSON.stringify(recepten));
             }, [recepten]);
 
+            const [selecteerDagVoor, setSelecteerDagVoor] = useState(null);
+
             const handleSelectRecept = (receptNaam) => {
-                // Zoek de eerste lege dag of vraag welke dag
-                const legeDag = DAGEN.find(dag => !maaltijden[dag]);
-                if (legeDag) {
+                // Toon dag-kiezer popup
+                setSelecteerDagVoor(receptNaam);
+            };
+
+            const handleDagGekozen = (dag) => {
+                if (selecteerDagVoor) {
                     setMaaltijden(prev => ({
                         ...prev,
-                        [legeDag]: receptNaam
+                        [dag]: selecteerDagVoor
                     }));
+                    setSelecteerDagVoor(null);
                     setActiveTab('planner');
-                } else {
-                    alert('Alle dagen zijn al gevuld. Verwijder eerst een maaltijd.');
                 }
             };
 
@@ -3055,6 +3059,44 @@
                     <footer className="text-center mt-8 text-sm text-fb-olive/70">
                         Gegevens worden automatisch opgeslagen in je browser
                     </footer>
+
+                    {/* Dag kiezer popup */}
+                    {selecteerDagVoor && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
+                                <h3 className="font-serif text-xl text-fb-hague mb-2">Dag kiezen</h3>
+                                <p className="text-fb-hague/70 mb-4">
+                                    Op welke dag wil je <strong>{selecteerDagVoor}</strong> eten?
+                                </p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {DAGEN.map(dag => (
+                                        <button
+                                            key={dag}
+                                            onClick={() => handleDagGekozen(dag)}
+                                            className={`px-4 py-3 rounded-lg text-left transition-all ${
+                                                maaltijden[dag]
+                                                    ? 'bg-fb-beige text-fb-hague/70 hover:bg-fb-stone'
+                                                    : 'bg-fb-olive text-white hover:bg-fb-forest'
+                                            }`}
+                                        >
+                                            <span className="font-medium">{dag}</span>
+                                            {maaltijden[dag] && (
+                                                <span className="block text-xs mt-1 truncate">
+                                                    {maaltijden[dag]} (vervangen)
+                                                </span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={() => setSelecteerDagVoor(null)}
+                                    className="mt-4 w-full px-4 py-2 text-fb-hague/70 hover:text-fb-hague transition-colors"
+                                >
+                                    Annuleren
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
