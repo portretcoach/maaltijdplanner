@@ -1,0 +1,3066 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maaltijdplanner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        // Farrow & Ball inspired palette
+                        fb: {
+                            // Beige tonen (Joa's White, String, Oxford Stone)
+                            cream: '#F8F4E9',
+                            beige: '#E8E0D0',
+                            stone: '#D4C9B5',
+                            sand: '#C4B59D',
+                            // Blauw tonen (Hague Blue, Stiffkey Blue, Inchyra Blue)
+                            skylight: '#D8E4E8',
+                            pale: '#A7C4CB',
+                            duck: '#6B9AA8',
+                            hague: '#3B5F6D',
+                            deep: '#2C4A54',
+                            // Groen tonen (Breakfast Room Green, Card Room Green, Calke Green)
+                            mint: '#D5E0D0',
+                            sage: '#9DB4A0',
+                            olive: '#7A9A7E',
+                            forest: '#5C7B5E',
+                            calke: '#3D5940',
+                            // Accent kleuren
+                            terracotta: '#C4846C',
+                            wine: '#8B4D57',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-weight: 300;
+            letter-spacing: 0.02em;
+        }
+
+        h1, h2, h3, h4, .font-serif {
+            font-family: 'Playfair Display', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
+            font-weight: 500;
+            letter-spacing: 0.01em;
+        }
+
+        /* Custom scrollbar voor Farrow & Ball look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #E8E0D0;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #9DB4A0;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #7A9A7E;
+        }
+
+        /* Button en input styling */
+        button, input, select {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-weight: 300;
+        }
+
+        /* Details summary styling */
+        summary {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-weight: 400;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-fb-cream to-fb-beige min-h-screen">
+    <div id="root"></div>
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        const DAGEN = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag'];
+        const STORAGE_KEYS = {
+            maaltijden: 'maaltijdplanner',
+            recepten: 'maaltijdplanner_recepten'
+        };
+
+        // Type constanten voor filtering
+        const TYPES = ['Kip', 'Vlees', 'Vis', 'Vegetarisch', 'Vegan'];
+
+        // Database met gezonde familierecepten
+        const RECEPT_DATABASE = [
+            // === KLASSIEKERS ===
+            {
+                id: 'db-1',
+                naam: 'Pasta Bolognese',
+                categorie: 'Pasta',
+                type: 'Vlees',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '400g pasta',
+                    '500g rundergehakt',
+                    '1 ui, gesnipperd',
+                    '2 teentjes knoflook',
+                    '400g gepelde tomaten (blik)',
+                    '2 el tomatenpuree',
+                    '1 wortel, geraspt',
+                    'Italiaanse kruiden',
+                    'Parmezaanse kaas'
+                ],
+                bereiding: [
+                    'Fruit de ui en knoflook in olijfolie tot ze glazig zijn.',
+                    'Voeg het gehakt toe en bak rul.',
+                    'Voeg de geraspte wortel, tomatenpuree en gepelde tomaten toe.',
+                    'Laat 20 minuten zachtjes sudderen met de Italiaanse kruiden.',
+                    'Kook ondertussen de pasta volgens de verpakking.',
+                    'Meng de saus door de pasta en serveer met Parmezaanse kaas.'
+                ]
+            },
+            {
+                id: 'db-2',
+                naam: 'Kippensoep met noedels',
+                categorie: 'Soep',
+                type: 'Kip',
+                bereidingstijd: '35 min',
+                ingredienten: [
+                    '2 kipfilets',
+                    '1,5 liter kippenbouillon',
+                    '2 wortels, in plakjes',
+                    '2 stengels bleekselderij',
+                    '1 ui, gesnipperd',
+                    '100g noedels',
+                    'Verse peterselie',
+                    'Peper en zout'
+                ],
+                bereiding: [
+                    'Breng de bouillon aan de kook met de kipfilets.',
+                    'Laat de kip 15 minuten garen, haal uit de pan en trek in stukjes.',
+                    'Voeg ui, wortel en bleekselderij toe aan de bouillon.',
+                    'Kook 10 minuten tot de groenten gaar zijn.',
+                    'Voeg de noedels toe en kook nog 3-4 minuten.',
+                    'Voeg de kip terug toe, breng op smaak en garneer met peterselie.'
+                ]
+            },
+            {
+                id: 'db-3',
+                naam: 'Ovenschotel met groenten',
+                categorie: 'Ovenschotel',
+                type: 'Vegetarisch',
+                bereidingstijd: '45 min',
+                ingredienten: [
+                    '500g aardappels',
+                    '300g broccoli',
+                    '2 courgettes',
+                    '200g cherrytomaatjes',
+                    '200ml room',
+                    '150g geraspte kaas',
+                    '2 teentjes knoflook',
+                    'Tijm en rozemarijn'
+                ],
+                bereiding: [
+                    'Verwarm de oven voor op 200°C.',
+                    'Snijd de aardappels in dunne plakjes en kook ze 5 minuten voor.',
+                    'Snijd de courgettes in plakjes en verdeel de broccoli in roosjes.',
+                    'Leg alles laagjes in een ovenschaal met de tomaatjes.',
+                    'Meng de room met knoflook en kruiden, giet over de groenten.',
+                    'Strooi de kaas erover en bak 25-30 minuten goudbruin.'
+                ]
+            },
+            {
+                id: 'db-4',
+                naam: 'Wraps met kip en groenten',
+                categorie: 'Wraps',
+                type: 'Kip',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '4 tortillawraps',
+                    '2 kipfilets',
+                    '1 paprika, in reepjes',
+                    '1 komkommer',
+                    'IJsbergsla',
+                    '100g maïs',
+                    'Yoghurt-knoflooksaus',
+                    'Geraspte kaas'
+                ],
+                bereiding: [
+                    'Snijd de kipfilets in reepjes en bak ze goudbruin.',
+                    'Verwarm de wraps kort in een droge pan.',
+                    'Snijd de komkommer in dunne plakjes.',
+                    'Verdeel de saus over de wraps.',
+                    'Beleg met sla, kip, paprika, komkommer, maïs en kaas.',
+                    'Rol de wraps strak op en serveer direct.'
+                ]
+            },
+            {
+                id: 'db-5',
+                naam: 'Zalm met groenten uit de oven',
+                categorie: 'Vis',
+                type: 'Vis',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '4 zalmfilets',
+                    '400g sperziebonen',
+                    '300g cherrytomaatjes',
+                    '2 el olijfolie',
+                    '1 citroen',
+                    '2 teentjes knoflook',
+                    'Dille',
+                    'Peper en zout'
+                ],
+                bereiding: [
+                    'Verwarm de oven voor op 200°C.',
+                    'Leg de sperziebonen en tomaatjes op een bakplaat.',
+                    'Besprenkel met olijfolie en voeg de knoflook toe.',
+                    'Leg de zalmfilets erop en besprenkel met citroensap.',
+                    'Bestrooi met dille, peper en zout.',
+                    'Bak 18-20 minuten tot de zalm gaar is.'
+                ]
+            },
+            {
+                id: 'db-6',
+                naam: 'Nasi Goreng',
+                categorie: 'Aziatisch',
+                type: 'Kip',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '300g rijst (gekookt)',
+                    '200g kipfilet, in blokjes',
+                    '2 eieren',
+                    '1 ui, gesnipperd',
+                    '2 teentjes knoflook',
+                    '150g doperwten',
+                    '2 el ketjap manis',
+                    '1 el sambal',
+                    'Kroepoek'
+                ],
+                bereiding: [
+                    'Bak de kipblokjes in een wok tot ze gaar zijn, haal uit de pan.',
+                    'Fruit de ui en knoflook in de wok.',
+                    'Voeg de koude rijst toe en bak op hoog vuur.',
+                    'Roer de ketjap en sambal erdoor.',
+                    'Voeg de kip en doperwten toe.',
+                    'Maak een kuiltje, klop de eieren erin en roer door de rijst.',
+                    'Serveer met kroepoek en gebakken uitjes.'
+                ]
+            },
+            {
+                id: 'db-7',
+                naam: 'Stamppot boerenkool',
+                categorie: 'Hollands',
+                type: 'Vlees',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '1 kg aardappels',
+                    '500g boerenkool',
+                    '1 rookworst',
+                    '100ml melk',
+                    '50g boter',
+                    'Nootmuskaat',
+                    'Peper en zout',
+                    'Jus'
+                ],
+                bereiding: [
+                    'Schil de aardappels en kook ze gaar in gezouten water.',
+                    'Kook de rookworst mee de laatste 15 minuten.',
+                    'Was de boerenkool en kook of stoom deze gaar.',
+                    'Giet de aardappels af en stamp ze fijn met melk en boter.',
+                    'Schep de boerenkool erdoor en breng op smaak.',
+                    'Serveer met plakjes rookworst en jus.'
+                ]
+            },
+            {
+                id: 'db-8',
+                naam: 'Griekse salade met kip',
+                categorie: 'Salade',
+                type: 'Kip',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '2 kipfilets, gegrild',
+                    '1 komkommer',
+                    '250g cherrytomaatjes',
+                    '1 rode ui',
+                    '200g feta',
+                    'Zwarte olijven',
+                    'Olijfolie',
+                    'Oregano',
+                    'Pitabroodjes'
+                ],
+                bereiding: [
+                    'Gril de kipfilets met oregano en snijd in reepjes.',
+                    'Snijd de komkommer in halve plakjes en halveer de tomaatjes.',
+                    'Snijd de rode ui in dunne ringen.',
+                    'Meng alle groenten in een grote schaal.',
+                    'Verkruimel de feta erover en voeg de olijven toe.',
+                    'Besprenkel met olijfolie en serveer met warm pitabrood.'
+                ]
+            },
+            {
+                id: 'db-9',
+                naam: 'Mexicaanse burritobowl',
+                categorie: 'Bowl',
+                type: 'Vlees',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '250g rijst',
+                    '400g kidneybonen (blik)',
+                    '300g rundergehakt',
+                    '1 paprika',
+                    '150g maïs',
+                    'Guacamole',
+                    'Zure room',
+                    'Taco-kruiden',
+                    'Koriander'
+                ],
+                bereiding: [
+                    'Kook de rijst volgens de verpakking.',
+                    'Bak het gehakt met taco-kruiden.',
+                    'Snijd de paprika in blokjes en bak kort mee.',
+                    'Verwarm de kidneybonen en maïs.',
+                    'Verdeel de rijst over kommen.',
+                    'Top met gehakt, bonen, maïs, paprika, guacamole en zure room.',
+                    'Garneer met verse koriander.'
+                ]
+            },
+            {
+                id: 'db-10',
+                naam: 'Tomatensoep met balletjes',
+                categorie: 'Soep',
+                type: 'Vlees',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '800g gepelde tomaten (blik)',
+                    '300g rundergehakt',
+                    '1 ui, gesnipperd',
+                    '2 teentjes knoflook',
+                    '500ml groentebouillon',
+                    '100ml room',
+                    'Basilicum',
+                    'Stokbrood'
+                ],
+                bereiding: [
+                    'Maak kleine balletjes van het gehakt met peper en zout.',
+                    'Bak de balletjes rondom bruin en haal uit de pan.',
+                    'Fruit de ui en knoflook in dezelfde pan.',
+                    'Voeg de tomaten en bouillon toe, laat 15 minuten koken.',
+                    'Pureer de soep en roer de room erdoor.',
+                    'Voeg de balletjes toe en warm nog 5 minuten door.',
+                    'Serveer met verse basilicum en stokbrood.'
+                ]
+            },
+            {
+                id: 'db-11',
+                naam: 'Pannenkoeken',
+                categorie: 'Favoriet',
+                type: 'Vegetarisch',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '300g bloem',
+                    '3 eieren',
+                    '500ml melk',
+                    'Snufje zout',
+                    'Boter om te bakken',
+                    'Stroop of poedersuiker',
+                    'Spek (optioneel)',
+                    'Kaas (optioneel)'
+                ],
+                bereiding: [
+                    'Meng bloem en zout in een kom.',
+                    'Klop de eieren los en voeg toe met de helft van de melk.',
+                    'Roer tot een glad beslag en voeg de rest van de melk toe.',
+                    'Laat het beslag 15 minuten rusten.',
+                    'Verhit boter in een koekenpan en schep beslag erin.',
+                    'Bak aan beide kanten goudbruin.',
+                    'Serveer met stroop, poedersuiker of hartig met spek en kaas.'
+                ]
+            },
+            {
+                id: 'db-12',
+                naam: 'Teriyaki kip met rijst',
+                categorie: 'Aziatisch',
+                type: 'Kip',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '4 kipfilets',
+                    '250g rijst',
+                    '4 el teriyakisaus',
+                    '200g broccoli',
+                    '1 wortel, in reepjes',
+                    '2 el sesamolie',
+                    'Sesamzaadjes',
+                    'Bosui'
+                ],
+                bereiding: [
+                    'Kook de rijst volgens de verpakking.',
+                    'Snijd de kip in blokjes en marineer 10 minuten in teriyakisaus.',
+                    'Bak de kip in sesamolie op hoog vuur.',
+                    'Voeg de broccoli en wortel toe, roerbak 3-4 minuten.',
+                    'Giet de rest van de teriyakisaus erbij.',
+                    'Serveer op de rijst met sesamzaadjes en bosui.'
+                ]
+            },
+            {
+                id: 'db-13',
+                naam: 'Lasagne',
+                categorie: 'Ovenschotel',
+                type: 'Vlees',
+                bereidingstijd: '60 min',
+                ingredienten: [
+                    '500g rundergehakt',
+                    '1 ui, gesnipperd',
+                    '400g gepelde tomaten',
+                    '2 el tomatenpuree',
+                    'Lasagnebladen',
+                    '500ml bechamelsaus',
+                    '150g geraspte kaas',
+                    'Italiaanse kruiden'
+                ],
+                bereiding: [
+                    'Verwarm de oven voor op 180°C.',
+                    'Bak het gehakt met ui en voeg tomaten en tomatenpuree toe.',
+                    'Laat de vleessaus 15 minuten sudderen met kruiden.',
+                    'Maak of verwarm de bechamelsaus.',
+                    'Maak laagjes: vleessaus, lasagnebladen, bechamelsaus. Herhaal.',
+                    'Eindig met bechamelsaus en kaas.',
+                    'Bak 35-40 minuten tot goudbruin en bubbelig.'
+                ]
+            },
+            {
+                id: 'db-14',
+                naam: 'Frittata met groenten',
+                categorie: 'Eieren',
+                type: 'Vegetarisch',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '6 eieren',
+                    '1 courgette',
+                    '1 paprika',
+                    '100g spinazie',
+                    '1 ui, gesnipperd',
+                    '100g feta',
+                    '50ml melk',
+                    'Verse kruiden'
+                ],
+                bereiding: [
+                    'Verwarm de grill van de oven voor.',
+                    'Bak de ui, courgette en paprika in een ovenvaste pan.',
+                    'Voeg de spinazie toe tot deze slinkt.',
+                    'Klop de eieren met melk en kruiden.',
+                    'Giet het eimengsel over de groenten.',
+                    'Verkruimel de feta erover.',
+                    'Bak 5 minuten op laag vuur, grill dan 3-4 minuten tot gezet.'
+                ]
+            },
+
+            // === AZIATISCH ===
+            {
+                id: 'db-15',
+                naam: 'Pad Thai',
+                categorie: 'Aziatisch',
+                type: 'Kip',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '200g rijstnoedels',
+                    '200g garnalen of kip',
+                    '2 eieren',
+                    '100g taugé',
+                    '3 el vissaus',
+                    '2 el tamarindesaus',
+                    '1 el suiker',
+                    'Pinda\'s, gehakt',
+                    'Limoen',
+                    'Bosui'
+                ],
+                bereiding: [
+                    'Week de rijstnoedels in warm water tot ze zacht zijn.',
+                    'Meng vissaus, tamarindesaus en suiker voor de saus.',
+                    'Bak de garnalen of kip in een wok, haal uit de pan.',
+                    'Klop de eieren in de wok en roerbak tot net gestold.',
+                    'Voeg de noedels en saus toe, bak 2 minuten.',
+                    'Voeg het eiwit, taugé en bosui toe.',
+                    'Serveer met pinda\'s en een schijfje limoen.'
+                ]
+            },
+            {
+                id: 'db-16',
+                naam: 'Japanse Ramen',
+                categorie: 'Aziatisch',
+                type: 'Vlees',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '200g ramen noedels',
+                    '1 liter kippenbouillon',
+                    '2 el sojasaus',
+                    '1 el miso pasta',
+                    '2 eieren (zacht gekookt)',
+                    '200g varkensvlees of kip',
+                    'Nori (zeewier)',
+                    'Bosui',
+                    'Maïs',
+                    'Sesamolie'
+                ],
+                bereiding: [
+                    'Kook de eieren 6,5 minuut voor zacht gekookt, pel en halveer.',
+                    'Verhit de bouillon met sojasaus, miso en sesamolie.',
+                    'Bak het vlees en snijd in dunne plakjes.',
+                    'Kook de noedels volgens de verpakking.',
+                    'Verdeel de noedels over kommen.',
+                    'Giet de hete bouillon erover.',
+                    'Top met vlees, ei, nori, bosui en maïs.'
+                ]
+            },
+            {
+                id: 'db-17',
+                naam: 'Koreaanse Bibimbap',
+                categorie: 'Aziatisch',
+                type: 'Vlees',
+                bereidingstijd: '35 min',
+                ingredienten: [
+                    '300g rijst',
+                    '200g rundergehakt',
+                    '1 wortel, in reepjes',
+                    '100g spinazie',
+                    '100g taugé',
+                    '1 courgette',
+                    '4 eieren',
+                    'Gochujang (Koreaanse chilipasta)',
+                    'Sesamolie',
+                    'Sesamzaadjes'
+                ],
+                bereiding: [
+                    'Kook de rijst en houd warm.',
+                    'Marineer het gehakt met sojasaus en sesamolie, bak gaar.',
+                    'Blancheer de spinazie en taugé apart, meng met sesamolie.',
+                    'Bak de wortel en courgette apart in sesamolie.',
+                    'Bak de eieren sunny side up.',
+                    'Verdeel de rijst over kommen, schik alle toppings erop.',
+                    'Top met een gebakken ei en gochujang. Meng voor het eten!'
+                ]
+            },
+            {
+                id: 'db-18',
+                naam: 'Vietnamese Pho',
+                categorie: 'Aziatisch',
+                type: 'Vlees',
+                bereidingstijd: '40 min',
+                ingredienten: [
+                    '200g rijstnoedels',
+                    '1,5 liter runderbouillon',
+                    '300g biefstuk, dun gesneden',
+                    '1 ui, gehalveerd',
+                    '5cm gember',
+                    '2 steranijs',
+                    '1 kaneelstokje',
+                    'Taugé',
+                    'Verse kruiden (thai basilicum, koriander)',
+                    'Limoen, chilipeper'
+                ],
+                bereiding: [
+                    'Rooster de ui en gember onder de grill tot zwart geblakerd.',
+                    'Breng de bouillon aan de kook met ui, gember, steranijs en kaneel.',
+                    'Laat 20 minuten trekken, zeef de bouillon.',
+                    'Kook de rijstnoedels en verdeel over kommen.',
+                    'Leg de rauwe biefstuk op de noedels.',
+                    'Giet de kokend hete bouillon erover (dit gaart het vlees).',
+                    'Serveer met taugé, kruiden, limoen en chilipeper.'
+                ]
+            },
+            {
+                id: 'db-19',
+                naam: 'Thaise Groene Curry',
+                categorie: 'Aziatisch',
+                type: 'Kip',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '400ml kokosmelk',
+                    '2-3 el groene currypasta',
+                    '400g kipfilet, in blokjes',
+                    '1 aubergine',
+                    '100g sugarsnaps',
+                    '1 rode paprika',
+                    'Thai basilicum',
+                    'Vissaus',
+                    'Palmsuiker',
+                    'Jasmijnrijst'
+                ],
+                bereiding: [
+                    'Kook de jasmijnrijst.',
+                    'Verhit de dikke kokosmelk en roerbak de currypasta 2 minuten.',
+                    'Voeg de kip toe en bak tot deze wit is.',
+                    'Voeg de rest van de kokosmelk en de groenten toe.',
+                    'Laat 10 minuten sudderen.',
+                    'Breng op smaak met vissaus en palmsuiker.',
+                    'Garneer met Thai basilicum en serveer met rijst.'
+                ]
+            },
+            {
+                id: 'db-20',
+                naam: 'Japanse Gyoza',
+                categorie: 'Aziatisch',
+                type: 'Vlees',
+                bereidingstijd: '40 min',
+                ingredienten: [
+                    '250g varkensgehakt',
+                    '200g Chinese kool, fijngesneden',
+                    '2 teentjes knoflook',
+                    '2cm gember, geraspt',
+                    '2 el sojasaus',
+                    '1 el sesamolie',
+                    'Gyoza velletjes (ca. 30 stuks)',
+                    'Rijstazijn',
+                    'Chiliolie'
+                ],
+                bereiding: [
+                    'Meng gehakt met kool, knoflook, gember, sojasaus en sesamolie.',
+                    'Leg een theelepel vulling op elk velletje.',
+                    'Bevochtig de randen, vouw dicht en maak plooitjes.',
+                    'Verhit olie in een pan en bak de gyoza\'s aan de onderkant goudbruin.',
+                    'Voeg 50ml water toe en dek af. Stoom 5 minuten.',
+                    'Haal het deksel eraf en bak tot het water verdampt is.',
+                    'Serveer met sojasaus, rijstazijn en chiliolie.'
+                ]
+            },
+            {
+                id: 'db-21',
+                naam: 'Indonesische Gado Gado',
+                categorie: 'Aziatisch',
+                type: 'Vegetarisch',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '200g taugé',
+                    '200g sperziebonen',
+                    '2 eieren, hardgekookt',
+                    '200g aardappels',
+                    '100g tahu, gebakken',
+                    '1 komkommer',
+                    'Kroepoek',
+                    '150g pindakaas',
+                    '100ml kokosmelk',
+                    'Ketjap, sambal, knoflook'
+                ],
+                bereiding: [
+                    'Kook de aardappels gaar en snijd in plakjes.',
+                    'Blancheer de sperziebonen en taugé.',
+                    'Kook de eieren hard en snijd in parten.',
+                    'Bak de tahu goudbruin.',
+                    'Maak de pindasaus: meng pindakaas met kokosmelk, ketjap, sambal en knoflook.',
+                    'Schik alle groenten en tahu op een bord.',
+                    'Giet de warme pindasaus erover en serveer met kroepoek.'
+                ]
+            },
+            {
+                id: 'db-22',
+                naam: 'Chinese Kung Pao Kip',
+                categorie: 'Aziatisch',
+                type: 'Kip',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '400g kipfilet, in blokjes',
+                    '100g ongezouten pinda\'s',
+                    '2 el sojasaus',
+                    '1 el rijstazijn',
+                    '1 el hoisinsaus',
+                    '1 tl sesamolie',
+                    '6 gedroogde chilipepers',
+                    '3 teentjes knoflook',
+                    '2cm gember',
+                    'Bosui'
+                ],
+                bereiding: [
+                    'Meng sojasaus, rijstazijn, hoisinsaus en sesamolie voor de saus.',
+                    'Verhit olie in een wok op hoog vuur.',
+                    'Bak de chilipepers 30 seconden tot geurig.',
+                    'Voeg de kip toe en roerbak tot goudbruin.',
+                    'Voeg knoflook en gember toe, bak 1 minuut.',
+                    'Giet de saus erbij en voeg de pinda\'s toe.',
+                    'Roerbak nog 2 minuten en serveer met bosui en rijst.'
+                ]
+            },
+            {
+                id: 'db-23',
+                naam: 'Bami Goreng',
+                categorie: 'Aziatisch',
+                type: 'Kip',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '300g mie of bami',
+                    '200g kipfilet, in reepjes',
+                    '1 prei, in ringen',
+                    '1 paprika, in reepjes',
+                    '100g taugé',
+                    '3 el ketjap manis',
+                    '1 el sojasaus',
+                    '2 teentjes knoflook',
+                    'Sambal',
+                    'Gebakken uitjes'
+                ],
+                bereiding: [
+                    'Kook de mie volgens de verpakking, laat uitlekken.',
+                    'Bak de kip in een wok op hoog vuur.',
+                    'Voeg knoflook, prei en paprika toe, roerbak 2 minuten.',
+                    'Voeg de mie, ketjap en sojasaus toe.',
+                    'Roerbak alles goed door elkaar.',
+                    'Voeg de taugé toe op het laatste moment.',
+                    'Serveer met sambal en gebakken uitjes.'
+                ]
+            },
+            {
+                id: 'db-24',
+                naam: 'Sushi Bowl (Poké Bowl)',
+                categorie: 'Aziatisch',
+                type: 'Vis',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '250g sushirijst',
+                    '300g verse zalm of tonijn',
+                    '1 avocado',
+                    '1 komkommer',
+                    '100g edamame',
+                    'Sojasaus',
+                    'Sesamolie',
+                    'Rijstazijn',
+                    'Nori, in reepjes',
+                    'Sesamzaadjes, gember'
+                ],
+                bereiding: [
+                    'Kook de sushirijst en meng met rijstazijn.',
+                    'Snijd de zalm of tonijn in blokjes.',
+                    'Marineer kort in sojasaus en sesamolie.',
+                    'Snijd de avocado en komkommer.',
+                    'Verdeel de rijst over kommen.',
+                    'Schik de vis, avocado, komkommer en edamame erop.',
+                    'Garneer met nori, sesamzaadjes en gember.'
+                ]
+            },
+            {
+                id: 'db-25',
+                naam: 'Maleisische Rendang',
+                categorie: 'Aziatisch',
+                type: 'Vlees',
+                bereidingstijd: '90 min',
+                ingredienten: [
+                    '600g rundvlees, in blokjes',
+                    '400ml kokosmelk',
+                    '3 el rendang pasta',
+                    '2 stengels citroengras',
+                    '4 djeroek poeroet bladeren',
+                    '2 el tamarinde',
+                    '1 el palmsuiker',
+                    'Kokosrasp, geroosterd',
+                    'Rijst'
+                ],
+                bereiding: [
+                    'Fruit de rendang pasta in een zware pan.',
+                    'Voeg het vlees toe en bak aan alle kanten.',
+                    'Voeg kokosmelk, citroengras en djeroek bladeren toe.',
+                    'Breng aan de kook en laat op laag vuur 60-90 minuten sudderen.',
+                    'Roer af en toe tot de saus is ingedikt.',
+                    'Voeg tamarinde en palmsuiker toe.',
+                    'Serveer met rijst en geroosterde kokosrasp.'
+                ]
+            },
+            {
+                id: 'db-26',
+                naam: 'Japanse Yakitori',
+                categorie: 'Aziatisch',
+                type: 'Kip',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '500g kippendijen, in blokjes',
+                    '4 el sojasaus',
+                    '4 el mirin',
+                    '2 el sake',
+                    '1 el suiker',
+                    'Bosui, in stukjes',
+                    'Bamboe satéstokjes',
+                    'Sesamzaadjes'
+                ],
+                bereiding: [
+                    'Week de satéstokjes 30 minuten in water.',
+                    'Kook sojasaus, mirin, sake en suiker tot een stroperige saus.',
+                    'Rijg de kip en bosui afwisselend aan de stokjes.',
+                    'Gril of bak de yakitori 3-4 minuten per kant.',
+                    'Bestrijk regelmatig met de tare saus.',
+                    'Bestrooi met sesamzaadjes.',
+                    'Serveer met rijst en ingelegde groenten.'
+                ]
+            },
+
+            // === MODERNE BOWLS & GEZOND ===
+            {
+                id: 'db-27',
+                naam: 'Buddha Bowl',
+                categorie: 'Bowl',
+                type: 'Vegan',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '200g quinoa',
+                    '1 zoete aardappel',
+                    '1 blik kikkererwten',
+                    '100g babyspinazie',
+                    '1 avocado',
+                    '100g rode kool',
+                    'Tahindressing',
+                    'Sesamzaadjes'
+                ],
+                bereiding: [
+                    'Kook de quinoa en laat afkoelen.',
+                    'Snijd de zoete aardappel in blokjes, rooster 25 min op 200°C.',
+                    'Bak de kikkererwten krokant met komijn.',
+                    'Maak de dressing: tahini, citroen, knoflook en water.',
+                    'Schaaf de rode kool en snijd de avocado.',
+                    'Verdeel alle ingrediënten over kommen.',
+                    'Druppel de tahindressing erover en strooi sesamzaadjes.'
+                ]
+            },
+            {
+                id: 'db-28',
+                naam: 'Shakshuka',
+                categorie: 'Eieren',
+                type: 'Vegetarisch',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '6 eieren',
+                    '400g gepelde tomaten',
+                    '2 paprika\'s',
+                    '1 ui',
+                    '3 teentjes knoflook',
+                    '1 tl komijn',
+                    '1 tl paprikapoeder',
+                    'Verse koriander',
+                    'Feta',
+                    'Brood'
+                ],
+                bereiding: [
+                    'Fruit de ui, paprika en knoflook in een koekenpan.',
+                    'Voeg komijn en paprikapoeder toe, bak 1 minuut.',
+                    'Voeg de tomaten toe en laat 10 minuten sudderen.',
+                    'Maak 6 kuiltjes in de saus.',
+                    'Breek in elk kuiltje een ei.',
+                    'Dek af en laat 8-10 minuten garen tot de eieren gestold zijn.',
+                    'Garneer met feta en koriander, serveer met brood.'
+                ]
+            },
+
+            // === MEDITERRAAN ===
+            {
+                id: 'db-29',
+                naam: 'Pasta Carbonara',
+                categorie: 'Pasta',
+                type: 'Vlees',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '400g spaghetti',
+                    '200g guanciale of spek',
+                    '4 eidooiers',
+                    '100g Pecorino Romano',
+                    '50g Parmezaanse kaas',
+                    'Zwarte peper',
+                    'Zout'
+                ],
+                bereiding: [
+                    'Kook de pasta in ruim gezouten water.',
+                    'Bak de guanciale krokant, zet het vuur uit.',
+                    'Meng de eidooiers met de geraspte kazen en veel peper.',
+                    'Bewaar een kopje pastawater.',
+                    'Giet de pasta af en voeg toe aan de pan met spek.',
+                    'Haal van het vuur, voeg het eimengsel toe en roer snel.',
+                    'Voeg pastawater toe voor de juiste romigheid.'
+                ]
+            },
+            {
+                id: 'db-30',
+                naam: 'Citroen-Parmezaan Risotto',
+                categorie: 'Rijst',
+                type: 'Vegetarisch',
+                bereidingstijd: '35 min',
+                ingredienten: [
+                    '300g risottorijst',
+                    '1 liter groentebouillon',
+                    '1 ui, fijngesneden',
+                    '2 teentjes knoflook',
+                    '100ml witte wijn',
+                    '1 citroen (rasp en sap)',
+                    '50g boter',
+                    '80g Parmezaanse kaas',
+                    'Verse basilicum'
+                ],
+                bereiding: [
+                    'Houd de bouillon warm op laag vuur.',
+                    'Fruit de ui en knoflook in boter.',
+                    'Voeg de rijst toe en roer tot hij glanst.',
+                    'Voeg de wijn toe en roer tot geabsorbeerd.',
+                    'Voeg lepel voor lepel bouillon toe, blijf roeren (ca. 18 min).',
+                    'Roer op het eind de citroenrasp, citroensap, boter en kaas erdoor.',
+                    'Garneer met verse basilicum en extra Parmezaan.'
+                ]
+            },
+
+            // === MODERNE INSTAGRAMMABLE RECEPTEN ===
+            {
+                id: 'db-31',
+                naam: 'Smashed Burger',
+                categorie: 'Amerikaans',
+                type: 'Vlees',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '400g rundergehakt',
+                    '4 brioche buns',
+                    '4 plakjes cheddar',
+                    '1 ui, in ringen',
+                    'Augurken',
+                    'IJsbergsla',
+                    'Tomaat',
+                    'Burger saus (mayo, ketchup, mosterd)',
+                    'Peper en zout'
+                ],
+                bereiding: [
+                    'Verdeel het gehakt in 4 ballen, breng op smaak.',
+                    'Verhit een gietijzeren pan op hoog vuur.',
+                    'Leg een bal in de pan en druk plat met een spatel.',
+                    'Bak 2 minuten, keer om en leg kaas erop.',
+                    'Bak nog 1 minuut tot de kaas smelt.',
+                    'Toast de buns in de pan.',
+                    'Beleg met saus, sla, tomaat, burger, ui en augurken.'
+                ]
+            },
+            {
+                id: 'db-32',
+                naam: 'Crispy Koreaanse Fried Chicken',
+                categorie: 'Aziatisch',
+                type: 'Kip',
+                bereidingstijd: '40 min',
+                ingredienten: [
+                    '600g kippendijen',
+                    '150g bloem',
+                    '50g maizena',
+                    '1 ei',
+                    '200ml karnemelk',
+                    '4 el gochujang',
+                    '3 el honing',
+                    '2 el sojasaus',
+                    'Sesamzaadjes',
+                    'Bosui'
+                ],
+                bereiding: [
+                    'Marineer de kip 30 min in karnemelk.',
+                    'Meng bloem en maizena met zout en peper.',
+                    'Haal de kip door het bloemmengsel, dan ei, dan weer bloem.',
+                    'Frituur op 180°C tot goudbruin en gaar (8-10 min).',
+                    'Meng gochujang, honing en sojasaus warm.',
+                    'Wentel de kip door de saus.',
+                    'Garneer met sesamzaadjes en bosui.'
+                ]
+            },
+            {
+                id: 'db-33',
+                naam: 'Salmon Rice Bowl (TikTok viral)',
+                categorie: 'Bowl',
+                type: 'Vis',
+                bereidingstijd: '15 min',
+                ingredienten: [
+                    '250g sushirijst (gekookt)',
+                    '200g verse zalm',
+                    '1 avocado',
+                    '2 el sojasaus',
+                    '1 el sriracha',
+                    '2 el mayonaise',
+                    'Nori snippers',
+                    'Sesamzaadjes',
+                    'Komkommer'
+                ],
+                bereiding: [
+                    'Snijd de zalm in kleine blokjes.',
+                    'Meng de zalm met sojasaus, sriracha en mayo.',
+                    'Snijd de avocado en komkommer in blokjes.',
+                    'Doe warme rijst in een kom.',
+                    'Schep de zalmmix erop samen met avocado en komkommer.',
+                    'Bestrooi met nori en sesamzaadjes.',
+                    'Meng alles door elkaar voor het eten!'
+                ]
+            },
+            {
+                id: 'db-34',
+                naam: 'Baked Feta Pasta',
+                categorie: 'Pasta',
+                type: 'Vegetarisch',
+                bereidingstijd: '35 min',
+                ingredienten: [
+                    '400g pasta (penne of fusilli)',
+                    '200g blok feta',
+                    '500g cherrytomaatjes',
+                    '4 teentjes knoflook',
+                    '4 el olijfolie',
+                    'Verse basilicum',
+                    'Chili vlokken',
+                    'Peper en zout'
+                ],
+                bereiding: [
+                    'Verwarm de oven voor op 200°C.',
+                    'Leg de tomaatjes in een ovenschaal, feta in het midden.',
+                    'Besprenkel met olijfolie, voeg knoflook en chili toe.',
+                    'Bak 25-30 minuten tot de tomaten barsten.',
+                    'Kook ondertussen de pasta al dente.',
+                    'Prak de feta en tomaten door elkaar.',
+                    'Meng de pasta erdoor en garneer met basilicum.'
+                ]
+            },
+            {
+                id: 'db-35',
+                naam: 'Açaí Bowl',
+                categorie: 'Bowl',
+                type: 'Vegan',
+                bereidingstijd: '10 min',
+                ingredienten: [
+                    '2 pakjes açaí puree (bevroren)',
+                    '1 banaan (bevroren)',
+                    '100ml amandelmelk',
+                    'Granola',
+                    'Verse bessen',
+                    'Kokosrasp',
+                    'Chiazaad',
+                    'Honing',
+                    'Pindakaas'
+                ],
+                bereiding: [
+                    'Blend de açaí puree met bevroren banaan en amandelmelk.',
+                    'Blend tot een dikke, gladde massa (ijsco-achtig).',
+                    'Schep in een mooie kom.',
+                    'Maak rijen met toppings: granola, bessen, kokos.',
+                    'Druppel honing en pindakaas eroverheen.',
+                    'Bestrooi met chiazaad.',
+                    'Direct serveren en fotograferen!'
+                ]
+            },
+            {
+                id: 'db-36',
+                naam: 'Pulled Chicken Tacos',
+                categorie: 'Mexicaans',
+                type: 'Kip',
+                bereidingstijd: '35 min',
+                ingredienten: [
+                    '500g kipfilet',
+                    '8 kleine taco shells',
+                    '200ml BBQ saus',
+                    '1 blik zwarte bonen',
+                    '1 avocado',
+                    'Rode kool, geschaafd',
+                    'Limoen',
+                    'Koriander',
+                    'Jalapeño',
+                    'Zure room'
+                ],
+                bereiding: [
+                    'Kook de kipfilet gaar in water met zout (20 min).',
+                    'Trek de kip uit elkaar met 2 vorken.',
+                    'Meng met BBQ saus en warm door.',
+                    'Verwarm de taco shells.',
+                    'Maak snelle guacamole van avocado met limoen en zout.',
+                    'Vul de tacos met kip, bonen, kool en guacamole.',
+                    'Top met zure room, koriander en jalapeño.'
+                ]
+            },
+            {
+                id: 'db-37',
+                naam: 'Cloud Eggs',
+                categorie: 'Eieren',
+                type: 'Vegetarisch',
+                bereidingstijd: '15 min',
+                ingredienten: [
+                    '4 eieren',
+                    '50g geraspte Parmezaan',
+                    'Bieslook, fijngesneden',
+                    'Peper en zout',
+                    'Toast',
+                    'Avocado'
+                ],
+                bereiding: [
+                    'Verwarm de oven voor op 230°C.',
+                    'Scheid de eiwitten van de dooiers (bewaar dooiers apart).',
+                    'Klop de eiwitten stijf met een snuf zout.',
+                    'Vouw de Parmezaan en bieslook erdoor.',
+                    'Maak 4 wolkjes op een bakplaat met bakpapier.',
+                    'Bak 3 min, maak een kuiltje, leg de dooier erin, bak nog 3 min.',
+                    'Serveer op toast met avocado.'
+                ]
+            },
+            {
+                id: 'db-38',
+                naam: 'Birria Tacos',
+                categorie: 'Mexicaans',
+                type: 'Vlees',
+                bereidingstijd: '180 min',
+                ingredienten: [
+                    '1 kg runderstoofvlees',
+                    '4 gedroogde guajillo pepers',
+                    '2 ancho pepers',
+                    '1 ui',
+                    '6 teentjes knoflook',
+                    '1 tl komijn',
+                    '1 tl oregano',
+                    '12 maistortillas',
+                    'Koriander, ui, limoen',
+                    'Geraspte kaas'
+                ],
+                bereiding: [
+                    'Week de pepers in heet water (20 min) en blend met kruiden.',
+                    'Braad het vlees aan alle kanten.',
+                    'Voeg de pepersaus, ui, knoflook en 500ml water toe.',
+                    'Stoof 2,5-3 uur op laag vuur tot het vlees uit elkaar valt.',
+                    'Trek het vlees uit elkaar en bewaar het braadvocht.',
+                    'Dip tortillas in het vet, vul met vlees en kaas.',
+                    'Bak krokant en serveer met consommé om te dippen.'
+                ]
+            },
+            {
+                id: 'db-39',
+                naam: 'Avocado Toast Deluxe',
+                categorie: 'Ontbijt',
+                type: 'Vegetarisch',
+                bereidingstijd: '10 min',
+                ingredienten: [
+                    '2 sneden zuurdesembrood',
+                    '1 rijpe avocado',
+                    '2 eieren',
+                    'Chili vlokken',
+                    'Feta of geitenkaas',
+                    'Cherry tomaatjes',
+                    'Microgreens',
+                    'Olijfolie',
+                    'Citroen, zeezout'
+                ],
+                bereiding: [
+                    'Toast het zuurdesembrood krokant.',
+                    'Prak de avocado met citroensap en zeezout.',
+                    'Pocheer of bak de eieren sunny side up.',
+                    'Verdeel de avocado over de toast.',
+                    'Leg het ei erop.',
+                    'Verkruimel de feta, voeg tomaatjes en microgreens toe.',
+                    'Bestrooi met chili vlokken en een druppel olijfolie.'
+                ]
+            },
+            {
+                id: 'db-40',
+                naam: 'Crispy Tofu Bowl',
+                categorie: 'Bowl',
+                type: 'Vegan',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '400g stevige tofu',
+                    '3 el maizena',
+                    '250g jasmijnrijst',
+                    '200g edamame',
+                    '1 avocado',
+                    '1 wortel, geraspt',
+                    'Sriracha mayo',
+                    'Sojasaus',
+                    'Sesamolie',
+                    'Sesamzaadjes'
+                ],
+                bereiding: [
+                    'Dep de tofu droog en snijd in blokjes.',
+                    'Meng met maizena, zout en peper.',
+                    'Bak in ruime olie tot krokant (8-10 min).',
+                    'Kook de rijst.',
+                    'Meng de tofu met sojasaus en sesamolie.',
+                    'Bouw de bowl: rijst, tofu, avocado, edamame, wortel.',
+                    'Drizzle met sriracha mayo en bestrooi met sesam.'
+                ]
+            },
+            {
+                id: 'db-41',
+                naam: 'Butter Chicken',
+                categorie: 'Indiaas',
+                type: 'Kip',
+                bereidingstijd: '40 min',
+                ingredienten: [
+                    '500g kipfilet, in blokjes',
+                    '200ml tomaten passata',
+                    '200ml room',
+                    '50g boter',
+                    '2 el garam masala',
+                    '1 el kurkuma',
+                    '1 el paprikapoeder',
+                    '3 teentjes knoflook',
+                    '3cm gember',
+                    'Naanbrood, rijst'
+                ],
+                bereiding: [
+                    'Marineer de kip in yoghurt, garam masala en kurkuma (min 30 min).',
+                    'Bak de kip goudbruin in boter, haal uit de pan.',
+                    'Fruit knoflook en gember, voeg kruiden toe.',
+                    'Voeg passata toe en laat 10 min sudderen.',
+                    'Roer de room erdoor en voeg de kip terug.',
+                    'Laat nog 10 min zachtjes koken.',
+                    'Serveer met naanbrood en basmatirijst.'
+                ]
+            },
+            {
+                id: 'db-42',
+                naam: 'Loaded Sweet Potato Fries',
+                categorie: 'Snacks',
+                type: 'Vlees',
+                bereidingstijd: '35 min',
+                ingredienten: [
+                    '2 grote zoete aardappels',
+                    '200g rundergehakt',
+                    'Taco kruiden',
+                    '100g cheddar, geraspt',
+                    'Jalapeños',
+                    'Zure room',
+                    'Guacamole',
+                    'Bieslook',
+                    'Olijfolie'
+                ],
+                bereiding: [
+                    'Snijd zoete aardappels in frietjes, meng met olijfolie.',
+                    'Bak op 200°C voor 25-30 min tot krokant.',
+                    'Bak het gehakt met taco kruiden.',
+                    'Leg de frietjes op een plaat.',
+                    'Top met gehakt en kaas, grill 2 min tot kaas smelt.',
+                    'Voeg zure room, guacamole en jalapeños toe.',
+                    'Garneer met bieslook.'
+                ]
+            },
+            {
+                id: 'db-43',
+                naam: 'Miso Glazed Zalm',
+                categorie: 'Aziatisch',
+                type: 'Vis',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '4 zalmfilets',
+                    '3 el witte miso pasta',
+                    '2 el mirin',
+                    '1 el sojasaus',
+                    '1 el honing',
+                    'Sesamolie',
+                    '300g paksoi',
+                    'Rijst',
+                    'Sesamzaadjes'
+                ],
+                bereiding: [
+                    'Meng miso, mirin, sojasaus en honing.',
+                    'Bestrijk de zalm met de helft van de marinade.',
+                    'Laat 15 min marineren.',
+                    'Bak de zalm 4 min per kant, bestrijk met extra marinade.',
+                    'Wok de paksoi kort in sesamolie.',
+                    'Kook rijst.',
+                    'Serveer de zalm op rijst met paksoi en sesamzaadjes.'
+                ]
+            },
+            {
+                id: 'db-44',
+                naam: 'Elote (Mexican Street Corn)',
+                categorie: 'Mexicaans',
+                type: 'Vegetarisch',
+                bereidingstijd: '15 min',
+                ingredienten: [
+                    '4 maiskolven',
+                    '4 el mayonaise',
+                    '50g cotija kaas (of feta)',
+                    '1 tl chipotle poeder',
+                    '1 limoen',
+                    'Koriander',
+                    'Boter'
+                ],
+                bereiding: [
+                    'Grill of kook de maiskolven gaar.',
+                    'Bestrijk royaal met mayonaise.',
+                    'Bestrooi met verkruimelde kaas.',
+                    'Voeg chipotle poeder toe.',
+                    'Knijp limoen erover.',
+                    'Garneer met verse koriander.',
+                    'Serveer direct terwijl het warm is.'
+                ]
+            },
+            {
+                id: 'db-45',
+                naam: 'Spicy Tuna Crispy Rice',
+                categorie: 'Aziatisch',
+                type: 'Vis',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '200g sushi-grade tonijn',
+                    '300g sushirijst',
+                    '2 el sriracha',
+                    '2 el mayonaise',
+                    '1 el sesamolie',
+                    'Sojasaus',
+                    'Avocado',
+                    'Bosui',
+                    'Sesam'
+                ],
+                bereiding: [
+                    'Kook sushirijst en laat afkoelen.',
+                    'Vorm rechthoekige blokjes van de rijst, druk stevig aan.',
+                    'Bak de rijstblokjes in olie tot goudbruin en krokant.',
+                    'Snijd de tonijn fijn en meng met sriracha, mayo en sesamolie.',
+                    'Schep de spicy tuna op de krokante rijst.',
+                    'Top met avocado plakjes.',
+                    'Garneer met bosui en sesamzaadjes.'
+                ]
+            },
+            {
+                id: 'db-46',
+                naam: 'Caprese Stuffed Chicken',
+                categorie: 'Italiaans',
+                type: 'Kip',
+                bereidingstijd: '35 min',
+                ingredienten: [
+                    '4 kipfilets',
+                    '200g mozzarella',
+                    '150g zongedroogde tomaten',
+                    'Verse basilicum',
+                    'Balsamico glazuur',
+                    '2 el olijfolie',
+                    'Knoflook',
+                    'Peper en zout'
+                ],
+                bereiding: [
+                    'Verwarm de oven voor op 200°C.',
+                    'Snijd een zakje in elke kipfilet (niet helemaal door).',
+                    'Vul met mozzarella, zongedroogde tomaten en basilicum.',
+                    'Sluit met prikkers.',
+                    'Bak aan beide kanten bruin in olijfolie.',
+                    'Zet 15-20 min in de oven tot gaar.',
+                    'Drizzle met balsamico glazuur.'
+                ]
+            },
+            {
+                id: 'db-47',
+                naam: 'Coconut Curry Garnalen',
+                categorie: 'Aziatisch',
+                type: 'Vis',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '400g grote garnalen',
+                    '400ml kokosmelk',
+                    '2 el rode currypasta',
+                    '1 rode paprika',
+                    '100g spinazie',
+                    '1 limoen',
+                    'Koriander',
+                    'Jasmijnrijst',
+                    'Knoflook, gember'
+                ],
+                bereiding: [
+                    'Kook de jasmijnrijst.',
+                    'Fruit knoflook, gember en currypasta in een pan.',
+                    'Voeg de kokosmelk toe, breng aan de kook.',
+                    'Voeg paprika toe en kook 5 min.',
+                    'Voeg garnalen toe, kook 3-4 min tot roze.',
+                    'Roer spinazie erdoor tot geslonken.',
+                    'Serveer met rijst, limoen en koriander.'
+                ]
+            },
+            {
+                id: 'db-48',
+                naam: 'Rainbow Spring Rolls',
+                categorie: 'Aziatisch',
+                type: 'Vis',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '12 rijstpapier velletjes',
+                    '200g garnalen (gekookt)',
+                    '100g rijstnoedels',
+                    '1 mango',
+                    '1 rode paprika',
+                    '1 komkommer',
+                    'Rode kool',
+                    'Verse mint en koriander',
+                    'Pindadipsaus'
+                ],
+                bereiding: [
+                    'Week de rijstnoedels en laat afkoelen.',
+                    'Snijd alle groenten en mango in dunne reepjes.',
+                    'Dip rijstpapier kort in warm water.',
+                    'Leg op een bord, beleg met noedels, groenten en garnalen.',
+                    'Vouw de zijkanten naar binnen, rol strak op.',
+                    'Herhaal met alle velletjes.',
+                    'Serveer met pindadipsaus.'
+                ]
+            },
+            {
+                id: 'db-49',
+                naam: 'Halloumi Salade Bowl',
+                categorie: 'Salade',
+                type: 'Vegetarisch',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '250g halloumi',
+                    '200g couscous',
+                    '1 blik kikkererwten',
+                    '200g cherrytomaatjes',
+                    '1 komkommer',
+                    'Rucola',
+                    'Granaatappelpitjes',
+                    'Munt',
+                    'Citroen-tahini dressing'
+                ],
+                bereiding: [
+                    'Kook de couscous volgens de verpakking.',
+                    'Snijd de halloumi in plakken en bak goudbruin.',
+                    'Rooster de kikkererwten met komijn.',
+                    'Snijd tomaten en komkommer.',
+                    'Bouw de bowl: couscous, rucola, groenten.',
+                    'Top met halloumi en kikkererwten.',
+                    'Garneer met granaatappel, munt en dressing.'
+                ]
+            },
+            {
+                id: 'db-50',
+                naam: 'Korean Beef Bulgogi',
+                categorie: 'Aziatisch',
+                type: 'Vlees',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '500g entrecote, dun gesneden',
+                    '4 el sojasaus',
+                    '2 el sesamolie',
+                    '2 el bruine suiker',
+                    '1 peer, geraspt',
+                    '4 teentjes knoflook',
+                    '2cm gember',
+                    'Rijst',
+                    'Kimchi',
+                    'Sesamzaadjes, bosui'
+                ],
+                bereiding: [
+                    'Meng sojasaus, sesamolie, suiker, peer, knoflook en gember.',
+                    'Marineer het vlees minimaal 30 minuten (liefst 2 uur).',
+                    'Verhit een grillpan of BBQ op hoog vuur.',
+                    'Bak het vlees in batches, snel en op hoog vuur.',
+                    'Serveer met gestoomde rijst.',
+                    'Voeg kimchi toe als side.',
+                    'Garneer met sesamzaadjes en bosui.'
+                ]
+            },
+
+            // === NIEUWE RECEPTEN ===
+            {
+                id: 'db-51',
+                naam: 'Honey Garlic Salmon',
+                categorie: 'Vis',
+                type: 'Vis',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '4 zalmfilets',
+                    '4 el honing',
+                    '3 el sojasaus',
+                    '4 teentjes knoflook, geperst',
+                    '1 el sesamolie',
+                    '1 citroen',
+                    'Sesamzaadjes',
+                    'Broccoli',
+                    'Rijst'
+                ],
+                bereiding: [
+                    'Meng honing, sojasaus, knoflook en sesamolie.',
+                    'Bak de zalm 3 min aan de huidkant in een hete pan.',
+                    'Keer om en giet de saus erover.',
+                    'Bak nog 3-4 min terwijl je de zalm met saus overgiet.',
+                    'Stoom de broccoli.',
+                    'Serveer met rijst, broccoli en sesamzaadjes.'
+                ]
+            },
+            {
+                id: 'db-52',
+                naam: 'Vegan Tikka Masala',
+                categorie: 'Indiaas',
+                type: 'Vegan',
+                bereidingstijd: '35 min',
+                ingredienten: [
+                    '400g kikkererwten (blik)',
+                    '400g bloemkoolroosjes',
+                    '400ml kokosmelk',
+                    '200g tomaten passata',
+                    '3 el tikka masala pasta',
+                    '1 ui',
+                    'Knoflook, gember',
+                    'Naanbrood',
+                    'Basmatirijst',
+                    'Koriander'
+                ],
+                bereiding: [
+                    'Rooster de bloemkool 20 min op 200°C.',
+                    'Fruit ui, knoflook en gember.',
+                    'Voeg tikka masala pasta toe en bak 1 min.',
+                    'Voeg passata en kokosmelk toe.',
+                    'Voeg kikkererwten en bloemkool toe.',
+                    'Laat 10 min sudderen.',
+                    'Serveer met rijst, naan en koriander.'
+                ]
+            },
+            {
+                id: 'db-53',
+                naam: 'Garlic Butter Steak Bites',
+                categorie: 'Amerikaans',
+                type: 'Vlees',
+                bereidingstijd: '15 min',
+                ingredienten: [
+                    '500g biefstuk, in blokjes',
+                    '4 el boter',
+                    '6 teentjes knoflook',
+                    'Verse rozemarijn',
+                    'Verse tijm',
+                    'Peper en zout',
+                    'Aardappelpuree',
+                    'Sperziebonen'
+                ],
+                bereiding: [
+                    'Breng de biefstuk op smaak met peper en zout.',
+                    'Verhit een gietijzeren pan op hoog vuur.',
+                    'Bak de steak bites 2 min zonder te verplaatsen.',
+                    'Voeg boter, knoflook en kruiden toe.',
+                    'Bak nog 2 min terwijl je met boter overgiet.',
+                    'Serveer direct met puree en groenten.'
+                ]
+            },
+            {
+                id: 'db-54',
+                naam: 'Mediterranean Quinoa Bowl',
+                categorie: 'Bowl',
+                type: 'Vegetarisch',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '200g quinoa',
+                    '200g kikkererwten',
+                    '200g cherrytomaatjes',
+                    '1 komkommer',
+                    '100g feta',
+                    'Kalamata olijven',
+                    'Rode ui',
+                    'Hummus',
+                    'Citroen-olijfolie dressing'
+                ],
+                bereiding: [
+                    'Kook de quinoa volgens de verpakking.',
+                    'Rooster de kikkererwten krokant met paprika.',
+                    'Snijd tomaatjes, komkommer en ui.',
+                    'Verdeel de quinoa over kommen.',
+                    'Top met groenten, kikkererwten en olijven.',
+                    'Voeg een schep hummus en feta toe.',
+                    'Drizzle met de dressing.'
+                ]
+            },
+            {
+                id: 'db-55',
+                naam: 'Lemon Herb Roasted Chicken',
+                categorie: 'Kip',
+                type: 'Kip',
+                bereidingstijd: '45 min',
+                ingredienten: [
+                    '8 kippendijen',
+                    '2 citroenen',
+                    '6 teentjes knoflook',
+                    'Verse rozemarijn',
+                    'Verse tijm',
+                    'Olijfolie',
+                    'Aardappels',
+                    'Peper en zout'
+                ],
+                bereiding: [
+                    'Verwarm de oven voor op 200°C.',
+                    'Snijd de aardappels in parten.',
+                    'Meng kip en aardappels met olijfolie, citroensap en kruiden.',
+                    'Leg alles in een braadpan met citroenschijfjes en knoflook.',
+                    'Bak 40-45 min tot de kip goudbruin is.',
+                    'Laat 5 min rusten voor serveren.'
+                ]
+            },
+            {
+                id: 'db-56',
+                naam: 'Thai Basil Kip (Pad Krapao)',
+                categorie: 'Aziatisch',
+                type: 'Kip',
+                bereidingstijd: '15 min',
+                ingredienten: [
+                    '500g kipgehakt',
+                    '4 teentjes knoflook',
+                    '4 rode pepers',
+                    '2 el oestersaus',
+                    '1 el vissaus',
+                    '1 el sojasaus',
+                    'Thai basilicum (bosje)',
+                    'Rijst',
+                    'Gebakken ei'
+                ],
+                bereiding: [
+                    'Verhit olie in een wok op hoog vuur.',
+                    'Bak knoflook en pepers 30 sec.',
+                    'Voeg kipgehakt toe en bak rul.',
+                    'Voeg oestersaus, vissaus en sojasaus toe.',
+                    'Roerbak 2 min.',
+                    'Haal van het vuur en roer Thai basilicum erdoor.',
+                    'Serveer met rijst en een gebakken ei.'
+                ]
+            },
+            {
+                id: 'db-57',
+                naam: 'Fish Tacos',
+                categorie: 'Mexicaans',
+                type: 'Vis',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '400g kabeljauw of tilapia',
+                    '8 kleine tortillas',
+                    '1 tl komijn',
+                    '1 tl paprikapoeder',
+                    'Rode kool, geschaafd',
+                    'Chipotle mayo',
+                    'Mango salsa',
+                    'Limoen',
+                    'Koriander'
+                ],
+                bereiding: [
+                    'Kruid de vis met komijn, paprika, zout en peper.',
+                    'Bak de vis 3-4 min per kant.',
+                    'Maak de mango salsa met mango, rode ui, jalapeño en koriander.',
+                    'Verwarm de tortillas.',
+                    'Verdeel vis over de tortillas.',
+                    'Top met kool, chipotle mayo en mango salsa.',
+                    'Serveer met limoen.'
+                ]
+            },
+            {
+                id: 'db-58',
+                naam: 'Creamy Tuscan Chicken',
+                categorie: 'Italiaans',
+                type: 'Kip',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '4 kipfilets',
+                    '200ml room',
+                    '100g zongedroogde tomaten',
+                    '100g spinazie',
+                    '50g Parmezaan',
+                    '4 teentjes knoflook',
+                    'Italiaanse kruiden',
+                    'Pasta of ciabatta'
+                ],
+                bereiding: [
+                    'Bak de kipfilets goudbruin, haal uit de pan.',
+                    'Fruit de knoflook in dezelfde pan.',
+                    'Voeg room, zongedroogde tomaten en Parmezaan toe.',
+                    'Laat 5 min inkoken.',
+                    'Voeg spinazie toe tot geslonken.',
+                    'Leg de kip terug in de saus.',
+                    'Serveer met pasta of crusty brood.'
+                ]
+            },
+            {
+                id: 'db-59',
+                naam: 'Vietnamese Banh Mi Bowl',
+                categorie: 'Aziatisch',
+                type: 'Vlees',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '400g varkensgehakt',
+                    '2 el sojasaus',
+                    '1 el vissaus',
+                    '1 el sriracha',
+                    'Ingelegde wortel en daikon',
+                    'Komkommer',
+                    'Jalapeño',
+                    'Koriander, munt',
+                    'Sriracha mayo',
+                    'Rijst'
+                ],
+                bereiding: [
+                    'Bak het gehakt met sojasaus, vissaus en sriracha.',
+                    'Maak quick pickles van wortel en daikon met azijn en suiker.',
+                    'Kook de rijst.',
+                    'Snijd komkommer en jalapeño.',
+                    'Bouw de bowl: rijst, gehakt, pickles, komkommer.',
+                    'Top met verse kruiden en sriracha mayo.'
+                ]
+            },
+            {
+                id: 'db-60',
+                naam: 'Chimichurri Steak',
+                categorie: 'Argentijns',
+                type: 'Vlees',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '2 entrecotes',
+                    '1 bos verse peterselie',
+                    '4 teentjes knoflook',
+                    '2 el rode wijnazijn',
+                    '100ml olijfolie',
+                    '1 tl chilivlokken',
+                    'Oregano',
+                    'Geroosterde aardappels'
+                ],
+                bereiding: [
+                    'Blend peterselie, knoflook, azijn, olie, chili en oregano.',
+                    'Laat de chimichurri 30 min trekken.',
+                    'Breng de steaks op smaak met peper en zout.',
+                    'Gril 3-4 min per kant voor medium rare.',
+                    'Laat 5 min rusten.',
+                    'Snijd in plakken en serveer met chimichurri.'
+                ]
+            },
+            {
+                id: 'db-61',
+                naam: 'Miso Ramen (Vegetarisch)',
+                categorie: 'Aziatisch',
+                type: 'Vegetarisch',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '200g ramen noedels',
+                    '1 liter groentebouillon',
+                    '3 el witte miso',
+                    '2 el sojasaus',
+                    'Zachte tofu',
+                    'Paksoi',
+                    'Maïs',
+                    'Nori',
+                    'Bosui',
+                    'Zacht gekookt ei'
+                ],
+                bereiding: [
+                    'Kook de eieren 6,5 min voor zacht gekookt.',
+                    'Verhit de bouillon en roer de miso en sojasaus erdoor.',
+                    'Kook de noedels volgens de verpakking.',
+                    'Verdeel noedels over kommen.',
+                    'Giet de hete bouillon erover.',
+                    'Top met tofu, paksoi, maïs, ei, nori en bosui.'
+                ]
+            },
+            {
+                id: 'db-62',
+                naam: 'Shrimp Scampi',
+                categorie: 'Italiaans',
+                type: 'Vis',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '500g grote garnalen',
+                    '400g linguine',
+                    '6 teentjes knoflook',
+                    '100ml witte wijn',
+                    '60g boter',
+                    '3 el olijfolie',
+                    'Chilivlokken',
+                    'Peterselie',
+                    'Citroen'
+                ],
+                bereiding: [
+                    'Kook de pasta al dente.',
+                    'Bak de garnalen in olijfolie, haal uit de pan.',
+                    'Fruit de knoflook met chilivlokken.',
+                    'Blus af met witte wijn, laat inkoken.',
+                    'Voeg boter en citroensap toe.',
+                    'Meng de pasta en garnalen door de saus.',
+                    'Serveer met verse peterselie.'
+                ]
+            },
+            {
+                id: 'db-63',
+                naam: 'Falafel Bowl',
+                categorie: 'Midden-Oosters',
+                type: 'Vegan',
+                bereidingstijd: '40 min',
+                ingredienten: [
+                    '400g kikkererwten (blik)',
+                    '1 ui',
+                    '4 teentjes knoflook',
+                    'Verse peterselie en koriander',
+                    '1 tl komijn',
+                    'Couscous',
+                    'Hummus',
+                    'Tahini dressing',
+                    'Tomaat, komkommer',
+                    'Rode kool'
+                ],
+                bereiding: [
+                    'Blend kikkererwten, ui, knoflook, kruiden en komijn.',
+                    'Vorm balletjes en bak of frituur goudbruin.',
+                    'Kook de couscous.',
+                    'Snijd de groenten.',
+                    'Bouw de bowl: couscous, falafel, groenten.',
+                    'Top met hummus en tahini dressing.'
+                ]
+            },
+            {
+                id: 'db-64',
+                naam: 'Gochujang Glazed Pork Belly',
+                categorie: 'Aziatisch',
+                type: 'Vlees',
+                bereidingstijd: '35 min',
+                ingredienten: [
+                    '500g speklapjes',
+                    '3 el gochujang',
+                    '2 el honing',
+                    '2 el sojasaus',
+                    '1 el sesamolie',
+                    'Knoflook, gember',
+                    'Rijst',
+                    'Ingelegde groenten',
+                    'Sesamzaadjes, bosui'
+                ],
+                bereiding: [
+                    'Snijd de speklapjes in dikke plakken.',
+                    'Meng gochujang, honing, sojasaus, sesamolie, knoflook en gember.',
+                    'Bak de speklapjes langzaam krokant.',
+                    'Voeg de saus toe en karamelliseer.',
+                    'Serveer met rijst en ingelegde groenten.',
+                    'Garneer met sesamzaadjes en bosui.'
+                ]
+            },
+            {
+                id: 'db-65',
+                naam: 'Pompoensoep',
+                categorie: 'Soep',
+                type: 'Vegan',
+                bereidingstijd: '35 min',
+                ingredienten: [
+                    '1 flespompoen',
+                    '1 ui',
+                    '3 teentjes knoflook',
+                    '1 liter groentebouillon',
+                    '200ml kokosmelk',
+                    '1 tl komijn',
+                    '1 tl kurkuma',
+                    'Pompoenpitten',
+                    'Crusty brood'
+                ],
+                bereiding: [
+                    'Snijd de pompoen in blokjes.',
+                    'Fruit ui en knoflook.',
+                    'Voeg pompoen, kruiden en bouillon toe.',
+                    'Kook 20 min tot de pompoen zacht is.',
+                    'Pureer glad en roer de kokosmelk erdoor.',
+                    'Serveer met geroosterde pompoenpitten en brood.'
+                ]
+            },
+            {
+                id: 'db-66',
+                naam: 'Chicken Katsu Curry',
+                categorie: 'Aziatisch',
+                type: 'Kip',
+                bereidingstijd: '40 min',
+                ingredienten: [
+                    '4 kipfilets',
+                    '100g panko',
+                    '2 eieren',
+                    'Bloem',
+                    '400ml Japanse currysaus',
+                    'Wortel, aardappel',
+                    'Rijst',
+                    'Bosui'
+                ],
+                bereiding: [
+                    'Maak de currysaus met wortel en aardappel of gebruik kant-en-klaar.',
+                    'Plat de kipfilets met een deegroller.',
+                    'Haal door bloem, ei en panko.',
+                    'Bak in olie tot goudbruin en gaar.',
+                    'Snijd in repen.',
+                    'Serveer rijst met curry en de katsu erop.',
+                    'Garneer met bosui.'
+                ]
+            },
+            {
+                id: 'db-67',
+                naam: 'Garnalen Pasta Pesto',
+                categorie: 'Pasta',
+                type: 'Vis',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '400g pasta',
+                    '300g garnalen',
+                    '4 el groene pesto',
+                    '200g cherrytomaatjes',
+                    '100g spinazie',
+                    '2 teentjes knoflook',
+                    'Parmezaan',
+                    'Pijnboompitten'
+                ],
+                bereiding: [
+                    'Kook de pasta al dente.',
+                    'Bak de garnalen met knoflook.',
+                    'Halveer de tomaatjes en voeg toe.',
+                    'Meng de pasta met pesto.',
+                    'Voeg garnalen, tomaten en spinazie toe.',
+                    'Serveer met Parmezaan en pijnboompitten.'
+                ]
+            },
+            {
+                id: 'db-68',
+                naam: 'Dan Dan Noodles',
+                categorie: 'Aziatisch',
+                type: 'Vlees',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '300g Chinese noedels',
+                    '250g varkensgehakt',
+                    '3 el Chinese sesamtahini',
+                    '2 el chiliolie',
+                    '2 el sojasaus',
+                    '1 el zwarte azijn',
+                    'Sichuan peper',
+                    'Paksoi',
+                    'Pinda\'s, bosui'
+                ],
+                bereiding: [
+                    'Meng tahini, chiliolie, sojasaus en azijn voor de saus.',
+                    'Bak het gehakt krokant met Sichuan peper.',
+                    'Kook de noedels.',
+                    'Blancheer de paksoi.',
+                    'Verdeel de saus over kommen, voeg noedels toe.',
+                    'Top met gehakt, paksoi, pinda\'s en bosui.'
+                ]
+            },
+            {
+                id: 'db-69',
+                naam: 'Griekse Moussaka',
+                categorie: 'Grieks',
+                type: 'Vlees',
+                bereidingstijd: '75 min',
+                ingredienten: [
+                    '2 aubergines',
+                    '500g lamsgehakt',
+                    '400g gepelde tomaten',
+                    '1 ui, knoflook',
+                    '1 tl kaneel',
+                    '500ml bechamelsaus',
+                    '100g feta',
+                    'Verse munt'
+                ],
+                bereiding: [
+                    'Snijd aubergines in plakken, bestrooi met zout en laat 30 min rusten.',
+                    'Bak de aubergine goudbruin.',
+                    'Maak de vleessaus met gehakt, ui, tomaten, knoflook en kaneel.',
+                    'Maak laagjes: aubergine, vleessaus, herhaal.',
+                    'Eindig met bechamelsaus en feta.',
+                    'Bak 40 min op 180°C.'
+                ]
+            },
+            {
+                id: 'db-70',
+                naam: 'Sweet Chili Glazed Kip',
+                categorie: 'Aziatisch',
+                type: 'Kip',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '600g kippendijen',
+                    '100ml sweet chili saus',
+                    '2 el sojasaus',
+                    '1 el rijstazijn',
+                    'Knoflook, gember',
+                    'Sesamzaadjes',
+                    'Rijst',
+                    'Gestoomde groenten'
+                ],
+                bereiding: [
+                    'Bak de kippendijen aan beide kanten goudbruin.',
+                    'Meng sweet chili, sojasaus, azijn, knoflook en gember.',
+                    'Giet over de kip en laat 10 min sudderen.',
+                    'Keer regelmatig om zodat de kip glaast.',
+                    'Serveer met rijst en groenten.',
+                    'Bestrooi met sesamzaadjes.'
+                ]
+            },
+            // === JAMIE OLIVER GEÏNSPIREERD ===
+            {
+                id: 'db-71',
+                naam: 'Crispy Zalm met Pesto Groenten',
+                categorie: 'Vis',
+                type: 'Vis',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '4 zalmfilets',
+                    '400g cherrytomaatjes',
+                    '2 courgettes, in blokjes',
+                    '3 el groene pesto',
+                    '2 el olijfolie',
+                    'Verse basilicum',
+                    'Citroen',
+                    'Peper en zout'
+                ],
+                bereiding: [
+                    'Verwarm de oven op 200°C.',
+                    'Leg de groenten op een bakplaat, meng met olijfolie en pesto.',
+                    'Leg de zalmfilets erop, bestrooi met zout en peper.',
+                    'Bak 18-20 minuten tot de zalm gaar is.',
+                    'Serveer met verse basilicum en een scheutje citroen.'
+                ]
+            },
+            {
+                id: 'db-72',
+                naam: 'Snelle Pasta Arrabiata',
+                categorie: 'Pasta',
+                type: 'Vegan',
+                bereidingstijd: '20 min',
+                ingredienten: [
+                    '400g spaghetti',
+                    '400g gepelde tomaten',
+                    '4 teentjes knoflook',
+                    '1-2 rode pepers',
+                    '4 el olijfolie',
+                    'Verse peterselie',
+                    'Peper en zout'
+                ],
+                bereiding: [
+                    'Kook de pasta al dente.',
+                    'Fruit knoflook en peper in olijfolie op laag vuur.',
+                    'Voeg de tomaten toe en laat 10 min pruttelen.',
+                    'Meng de pasta door de saus.',
+                    'Serveer met verse peterselie.'
+                ]
+            },
+            {
+                id: 'db-73',
+                naam: 'Kip Tikka Traybake',
+                categorie: 'Ovenschotel',
+                type: 'Kip',
+                bereidingstijd: '35 min',
+                ingredienten: [
+                    '600g kippendijen',
+                    '3 el tikka masala pasta',
+                    '200g yoghurt',
+                    '2 paprika\'s, in stukken',
+                    '1 rode ui, in parten',
+                    '400g kikkererwten (blik)',
+                    'Naanbrood',
+                    'Verse koriander'
+                ],
+                bereiding: [
+                    'Meng kip met tikka pasta en helft van de yoghurt.',
+                    'Leg kip en groenten op een bakplaat.',
+                    'Bak 25 min op 200°C.',
+                    'Voeg laatste 5 min kikkererwten toe.',
+                    'Serveer met naanbrood, yoghurt en koriander.'
+                ]
+            },
+            {
+                id: 'db-74',
+                naam: 'Lemony Kip met Aardappelen',
+                categorie: 'Ovenschotel',
+                type: 'Kip',
+                bereidingstijd: '40 min',
+                ingredienten: [
+                    '4 kippendijen',
+                    '600g krieltjes',
+                    '2 citroenen',
+                    '6 teentjes knoflook',
+                    'Verse rozemarijn',
+                    'Olijfolie',
+                    '100g olijven',
+                    'Peper en zout'
+                ],
+                bereiding: [
+                    'Verwarm oven op 200°C.',
+                    'Halveer de krieltjes en leg op bakplaat met knoflook.',
+                    'Leg kip erop, besprenkel met olijfolie en citroensap.',
+                    'Voeg citroenpartjes en rozemarijn toe.',
+                    'Bak 35 min, voeg laatste 10 min olijven toe.'
+                ]
+            },
+            // === OTTOLENGHI GEÏNSPIREERD ===
+            {
+                id: 'db-75',
+                naam: 'Geroosterde Bloemkool met Tahini',
+                categorie: 'Groenten',
+                type: 'Vegan',
+                bereidingstijd: '35 min',
+                ingredienten: [
+                    '1 grote bloemkool',
+                    '3 el olijfolie',
+                    '1 tl komijn',
+                    '1 tl kurkuma',
+                    '3 el tahini',
+                    '1 citroen',
+                    'Granaatappelpitjes',
+                    'Verse peterselie',
+                    'Pijnboompitten'
+                ],
+                bereiding: [
+                    'Snijd bloemkool in plakken van 2cm.',
+                    'Bestrooi met olie, komijn, kurkuma, zout.',
+                    'Rooster 25 min op 200°C tot goudbruin.',
+                    'Meng tahini met citroensap en water.',
+                    'Serveer met tahini, granaatappel, peterselie en pijnboompitten.'
+                ]
+            },
+            {
+                id: 'db-76',
+                naam: 'Shakshuka',
+                categorie: 'Eenpans',
+                type: 'Vegetarisch',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '400g gepelde tomaten',
+                    '1 rode paprika',
+                    '1 ui',
+                    '3 teentjes knoflook',
+                    '1 tl komijn',
+                    '1 tl paprikapoeder',
+                    '4 eieren',
+                    'Feta',
+                    'Vers brood'
+                ],
+                bereiding: [
+                    'Fruit ui, paprika en knoflook.',
+                    'Voeg kruiden en tomaten toe, laat 10 min sudderen.',
+                    'Maak kuiltjes en breek de eieren erin.',
+                    'Dek af en laat 5-8 min garen.',
+                    'Verkruimel feta erover en serveer met brood.'
+                ]
+            },
+            {
+                id: 'db-77',
+                naam: 'Orzo met Geroosterde Groenten',
+                categorie: 'Pasta',
+                type: 'Vegetarisch',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '300g orzo pasta',
+                    '1 aubergine, in blokjes',
+                    '200g cherrytomaatjes',
+                    '1 courgette',
+                    '100g feta',
+                    'Verse munt en basilicum',
+                    '2 el pijnboompitten',
+                    'Olijfolie, citroen'
+                ],
+                bereiding: [
+                    'Rooster aubergine en courgette 20 min op 200°C.',
+                    'Voeg tomaatjes laatste 10 min toe.',
+                    'Kook orzo volgens verpakking.',
+                    'Meng alles met kruiden, citroen en olijfolie.',
+                    'Top met feta en pijnboompitten.'
+                ]
+            },
+            {
+                id: 'db-78',
+                naam: 'Linzensalade met Geroosterde Wortels',
+                categorie: 'Salade',
+                type: 'Vegan',
+                bereidingstijd: '35 min',
+                ingredienten: [
+                    '400g linzen (blik)',
+                    '500g wortels',
+                    '1 tl komijn',
+                    '1 tl korianderzaad',
+                    '3 el olijfolie',
+                    'Verse koriander',
+                    '2 el granaatappelpitjes',
+                    'Citroendressing'
+                ],
+                bereiding: [
+                    'Snijd wortels schuin, meng met olie en kruiden.',
+                    'Rooster 25 min op 200°C.',
+                    'Spoel linzen af en meng met citroendressing.',
+                    'Schik wortels op linzen.',
+                    'Top met koriander en granaatappel.'
+                ]
+            },
+            // === YVETTE VAN BOVEN GEÏNSPIREERD ===
+            {
+                id: 'db-79',
+                naam: 'Stoofpotje met Bier en Mosterd',
+                categorie: 'Stoofpot',
+                type: 'Vlees',
+                bereidingstijd: '45 min',
+                ingredienten: [
+                    '500g runderstoofvlees',
+                    '2 uien',
+                    '300ml donker bier',
+                    '2 el mosterd',
+                    '2 wortels',
+                    '2 laurierblaadjes',
+                    'Tijm',
+                    'Aardappelpuree'
+                ],
+                bereiding: [
+                    'Braad het vlees rondom aan.',
+                    'Fruit de uien, voeg vlees terug.',
+                    'Voeg bier, mosterd, wortels en kruiden toe.',
+                    'Laat 30-40 min sudderen tot vlees mals is.',
+                    'Serveer met romige aardappelpuree.'
+                ]
+            },
+            {
+                id: 'db-80',
+                naam: 'Erwtensoep met Roggebrood',
+                categorie: 'Soep',
+                type: 'Vlees',
+                bereidingstijd: '40 min',
+                ingredienten: [
+                    '500g spliterwten',
+                    '1 rookworst',
+                    '2 preien',
+                    '3 aardappels',
+                    '1 knolselderij',
+                    'Selderijblad',
+                    'Roggebrood',
+                    'Mosterd'
+                ],
+                bereiding: [
+                    'Kook erwten in 1,5L water 20 min.',
+                    'Voeg gesneden groenten toe, kook nog 15 min.',
+                    'Prak de soep licht met een vork.',
+                    'Voeg plakjes rookworst toe.',
+                    'Serveer met roggebrood en mosterd.'
+                ]
+            },
+            {
+                id: 'db-81',
+                naam: 'Hollandse Stamppot met Rookworst',
+                categorie: 'Stamppot',
+                type: 'Vlees',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '1kg aardappels',
+                    '500g boerenkool of andijvie',
+                    '1 rookworst',
+                    '100ml melk',
+                    '50g boter',
+                    'Nootmuskaat',
+                    'Jus'
+                ],
+                bereiding: [
+                    'Kook aardappels gaar.',
+                    'Verwarm rookworst in water.',
+                    'Stamp aardappels met melk en boter.',
+                    'Roer de gesneden groenten erdoor.',
+                    'Serveer met rookworst en jus.'
+                ]
+            },
+            {
+                id: 'db-82',
+                naam: 'Tomatensoep van Verse Tomaten',
+                categorie: 'Soep',
+                type: 'Vegetarisch',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '1kg rijpe tomaten',
+                    '1 ui',
+                    '2 teentjes knoflook',
+                    '500ml groentebouillon',
+                    '2 el tomatenpuree',
+                    'Verse basilicum',
+                    'Room',
+                    'Brood'
+                ],
+                bereiding: [
+                    'Halveer tomaten en rooster 15 min op 180°C.',
+                    'Fruit ui en knoflook.',
+                    'Voeg tomaten, puree en bouillon toe.',
+                    'Pureer glad en verwarm.',
+                    'Serveer met een scheut room en basilicum.'
+                ]
+            },
+            // === VEGGILAINE GEÏNSPIREERD ===
+            {
+                id: 'db-83',
+                naam: 'Crispy Tofu Bowl',
+                categorie: 'Bowl',
+                type: 'Vegan',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '400g stevige tofu',
+                    '3 el sojasaus',
+                    '2 el maizena',
+                    '200g edamame',
+                    '1 avocado',
+                    'Sushirijst',
+                    'Sesamzaad',
+                    'Sriracha mayo'
+                ],
+                bereiding: [
+                    'Snijd tofu in blokjes, dep droog.',
+                    'Meng met sojasaus en maizena.',
+                    'Bak krokant in olie.',
+                    'Kook rijst en edamame.',
+                    'Bouw bowl met rijst, tofu, avocado, edamame.',
+                    'Top met sesamzaad en sriracha mayo.'
+                ]
+            },
+            {
+                id: 'db-84',
+                naam: 'Loaded Sweet Potato',
+                categorie: 'Groenten',
+                type: 'Vegan',
+                bereidingstijd: '40 min',
+                ingredienten: [
+                    '4 zoete aardappels',
+                    '400g zwarte bonen',
+                    '1 avocado',
+                    '100g maïs',
+                    'Rode ui, tomaat',
+                    'Limoen, koriander',
+                    'Vegan zure room',
+                    'Jalapeños'
+                ],
+                bereiding: [
+                    'Prik zoete aardappels in, bak 35 min op 200°C.',
+                    'Verwarm zwarte bonen met komijn.',
+                    'Maak guacamole van avocado en limoen.',
+                    'Snijd aardappels open.',
+                    'Vul met bonen, guac, maïs, tomaat en koriander.'
+                ]
+            },
+            {
+                id: 'db-85',
+                naam: 'Romige Pasta met Pompoen',
+                categorie: 'Pasta',
+                type: 'Vegan',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '400g pasta',
+                    '500g pompoen of butternut',
+                    '200ml kokosmelk',
+                    '2 teentjes knoflook',
+                    'Nootmuskaat',
+                    'Salie',
+                    'Walnoten',
+                    'Voedingsgist (optioneel)'
+                ],
+                bereiding: [
+                    'Kook pompoen tot zacht.',
+                    'Pureer met kokosmelk, knoflook en nootmuskaat.',
+                    'Kook pasta al dente.',
+                    'Meng pasta met pompoensaus.',
+                    'Serveer met gebakken salie en walnoten.'
+                ]
+            },
+            {
+                id: 'db-86',
+                naam: 'Mediterrane Kikkererwten Stoofpot',
+                categorie: 'Stoofpot',
+                type: 'Vegan',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '2 blikken kikkererwten',
+                    '400g gepelde tomaten',
+                    '1 aubergine',
+                    '1 rode paprika',
+                    '2 tl ras el hanout',
+                    'Verse munt',
+                    'Couscous',
+                    'Olijfolie'
+                ],
+                bereiding: [
+                    'Bak aubergine en paprika in blokjes.',
+                    'Voeg ras el hanout toe en bak even mee.',
+                    'Voeg tomaten en kikkererwten toe.',
+                    'Laat 15 min sudderen.',
+                    'Serveer met couscous en verse munt.'
+                ]
+            },
+            {
+                id: 'db-87',
+                naam: 'Pad Thai met Tofu',
+                categorie: 'Aziatisch',
+                type: 'Vegan',
+                bereidingstijd: '25 min',
+                ingredienten: [
+                    '250g rijstnoedels',
+                    '300g tofu',
+                    '2 eieren (of weglaten)',
+                    '100g taugé',
+                    '3 el tamarindepasta',
+                    '2 el sojasaus',
+                    'Pinda\'s, limoen',
+                    'Lente-ui, koriander'
+                ],
+                bereiding: [
+                    'Week noedels volgens verpakking.',
+                    'Bak tofu krokant, zet apart.',
+                    'Roerbak taugé kort.',
+                    'Voeg noedels en saus toe.',
+                    'Meng alles en serveer met pinda\'s, limoen en kruiden.'
+                ]
+            },
+            {
+                id: 'db-88',
+                naam: 'Buddha Bowl met Tahini Dressing',
+                categorie: 'Bowl',
+                type: 'Vegan',
+                bereidingstijd: '30 min',
+                ingredienten: [
+                    '200g quinoa',
+                    '400g kikkererwten',
+                    '1 zoete aardappel',
+                    '100g spinazie',
+                    '1 avocado',
+                    'Rode kool',
+                    'Tahini, citroen, knoflook',
+                    'Sesamzaad'
+                ],
+                bereiding: [
+                    'Kook quinoa.',
+                    'Rooster zoete aardappel en kikkererwten met kruiden.',
+                    'Maak dressing van tahini, citroen, knoflook en water.',
+                    'Bouw bowl met alle ingrediënten.',
+                    'Drizzle dressing erover.'
+                ]
+            }
+        ];
+
+        // Categorieën voor filtering
+        const CATEGORIEEN = [...new Set(RECEPT_DATABASE.map(r => r.categorie))].sort();
+
+        // Recepten Component - Alle recepten in één overzicht
+        function Recepten({ recepten, setRecepten, onSelectRecept }) {
+            const [zoekterm, setZoekterm] = useState('');
+            const [filterType, setFilterType] = useState('Alle');
+            const [nieuwReceptOpen, setNieuwReceptOpen] = useState(false);
+            const [nieuwRecept, setNieuwRecept] = useState({ naam: '', ingredienten: '' });
+            const [bewerkRecept, setBewerkRecept] = useState(null);
+            const [verborgenRecepten, setVerborgenRecepten] = useState(() => {
+                const saved = localStorage.getItem('verborgenRecepten');
+                return saved ? JSON.parse(saved) : [];
+            });
+
+            // Sla verborgen recepten op in localStorage
+            useEffect(() => {
+                localStorage.setItem('verborgenRecepten', JSON.stringify(verborgenRecepten));
+            }, [verborgenRecepten]);
+
+            // Verwijder database recept uit de lijst (verberg het)
+            const handleVerwijderUitLijst = (recept) => {
+                setVerborgenRecepten(prev => [...prev, recept.id]);
+            };
+
+            // Type iconen en kleuren (Farrow & Ball inspired)
+            const typeConfig = {
+                'Kip': { icon: '🍗', color: 'bg-fb-sand/40 text-fb-hague', activeColor: 'bg-fb-sand text-white' },
+                'Vlees': { icon: '🥩', color: 'bg-fb-terracotta/20 text-fb-wine', activeColor: 'bg-fb-terracotta text-white' },
+                'Vis': { icon: '🐟', color: 'bg-fb-skylight text-fb-hague', activeColor: 'bg-fb-duck text-white' },
+                'Vegetarisch': { icon: '🥬', color: 'bg-fb-mint text-fb-forest', activeColor: 'bg-fb-olive text-white' },
+                'Vegan': { icon: '🌱', color: 'bg-fb-sage/40 text-fb-calke', activeColor: 'bg-fb-calke text-white' },
+                'Eigen': { icon: '📝', color: 'bg-fb-pale/40 text-fb-hague', activeColor: 'bg-fb-hague text-white' }
+            };
+
+            // Combineer database recepten met eigen recepten
+            const eigenRecepten = recepten.map(r => ({
+                ...r,
+                type: 'Eigen',
+                categorie: 'Eigen',
+                bereidingstijd: '-',
+                isEigen: true
+            }));
+
+            // Filter verborgen database recepten uit
+            const zichtbareDbRecepten = RECEPT_DATABASE.filter(r => !verborgenRecepten.includes(r.id));
+            const alleRecepten = [...zichtbareDbRecepten, ...eigenRecepten];
+
+            // Filter recepten
+            const gefilterd = alleRecepten.filter(recept => {
+                const matchZoek = recept.naam.toLowerCase().includes(zoekterm.toLowerCase()) ||
+                    recept.ingredienten.some(i => i.toLowerCase().includes(zoekterm.toLowerCase()));
+                const matchType = filterType === 'Alle' || recept.type === filterType;
+                return matchZoek && matchType;
+            });
+
+            // Tel recepten per type (exclusief verborgen)
+            const typeCounts = {
+                ...TYPES.reduce((acc, type) => {
+                    acc[type] = zichtbareDbRecepten.filter(r => r.type === type).length;
+                    return acc;
+                }, {}),
+                'Eigen': eigenRecepten.length
+            };
+
+            // Nieuw eigen recept toevoegen
+            const handleNieuwToevoegen = () => {
+                if (!nieuwRecept.naam.trim()) return;
+
+                const ingredientenLijst = nieuwRecept.ingredienten
+                    .split('\n')
+                    .map(i => i.trim())
+                    .filter(i => i);
+
+                const recept = {
+                    id: Date.now(),
+                    naam: nieuwRecept.naam.trim(),
+                    ingredienten: ingredientenLijst
+                };
+
+                setRecepten(prev => [...prev, recept]);
+                setNieuwRecept({ naam: '', ingredienten: '' });
+                setNieuwReceptOpen(false);
+            };
+
+            // Eigen recept verwijderen
+            const handleReceptVerwijderen = (id) => {
+                setRecepten(prev => prev.filter(r => r.id !== id));
+            };
+
+            // Recept bewerken
+            const handleBewerken = (recept) => {
+                setBewerkRecept({
+                    ...recept,
+                    ingredienten: recept.ingredienten.join('\n')
+                });
+            };
+
+            const handleOpslaanBewerking = () => {
+                if (!bewerkRecept.naam.trim()) return;
+
+                const ingredientenLijst = bewerkRecept.ingredienten
+                    .split('\n')
+                    .map(i => i.trim())
+                    .filter(i => i);
+
+                setRecepten(prev => prev.map(r =>
+                    r.id === bewerkRecept.id
+                        ? { ...r, naam: bewerkRecept.naam.trim(), ingredienten: ingredientenLijst }
+                        : r
+                ));
+                setBewerkRecept(null);
+            };
+
+            return (
+                <div className="bg-fb-cream rounded-2xl shadow-lg p-6 border border-fb-stone/30">
+                    <h2 className="text-2xl font-bold text-fb-hague mb-2 flex items-center gap-2">
+                        <span>📖</span> Recepten
+                    </h2>
+                    <p className="text-fb-hague/70 mb-4">
+                        Kies een recept en voeg het toe aan je weekplanner. ({alleRecepten.length} recepten)
+                    </p>
+
+                    {/* Nieuw recept toevoegen knop */}
+                    <div className="mb-4">
+                        {!nieuwReceptOpen ? (
+                            <button
+                                onClick={() => setNieuwReceptOpen(true)}
+                                className="bg-fb-olive hover:bg-fb-forest text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+                            >
+                                + Eigen recept toevoegen
+                            </button>
+                        ) : (
+                            <div className="bg-fb-mint/30 rounded-xl p-4 border border-fb-sage/30">
+                                <h3 className="font-semibold text-fb-forest mb-3">Nieuw recept toevoegen</h3>
+                                <input
+                                    type="text"
+                                    value={nieuwRecept.naam}
+                                    onChange={(e) => setNieuwRecept(prev => ({ ...prev, naam: e.target.value }))}
+                                    placeholder="Naam van het recept..."
+                                    className="w-full px-4 py-2 rounded-lg border border-fb-sage/50 bg-white focus:border-fb-olive focus:ring-2 focus:ring-fb-sage/30 outline-none mb-3"
+                                />
+                                <textarea
+                                    value={nieuwRecept.ingredienten}
+                                    onChange={(e) => setNieuwRecept(prev => ({ ...prev, ingredienten: e.target.value }))}
+                                    placeholder="Ingrediënten (één per regel)..."
+                                    rows={4}
+                                    className="w-full px-4 py-2 rounded-lg border border-fb-sage/50 bg-white focus:border-fb-olive focus:ring-2 focus:ring-fb-sage/30 outline-none mb-3 resize-none"
+                                />
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={handleNieuwToevoegen}
+                                        className="bg-fb-olive hover:bg-fb-forest text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+                                    >
+                                        + Toevoegen
+                                    </button>
+                                    <button
+                                        onClick={() => {setNieuwReceptOpen(false); setNieuwRecept({ naam: '', ingredienten: '' });}}
+                                        className="bg-fb-stone/50 hover:bg-fb-stone text-fb-hague px-4 py-2 rounded-lg font-medium transition-colors"
+                                    >
+                                        Annuleren
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Type filter buttons */}
+                    <div className="flex flex-wrap gap-2 mb-4">
+                        <button
+                            onClick={() => setFilterType('Alle')}
+                            className={`px-3 py-2 rounded-lg text-sm transition-all ${
+                                filterType === 'Alle'
+                                    ? 'bg-fb-hague text-fb-cream'
+                                    : 'bg-fb-beige text-fb-hague hover:bg-fb-stone'
+                            }`}
+                        >
+                            Alles ({alleRecepten.length})
+                        </button>
+                        {TYPES.map(type => (
+                            <button
+                                key={type}
+                                onClick={() => setFilterType(type)}
+                                className={`px-3 py-2 rounded-lg text-sm transition-all flex items-center gap-1 ${
+                                    filterType === type
+                                        ? typeConfig[type].activeColor
+                                        : typeConfig[type].color + ' hover:opacity-80'
+                                }`}
+                            >
+                                {typeConfig[type].icon} {type} ({typeCounts[type]})
+                            </button>
+                        ))}
+                        {eigenRecepten.length > 0 && (
+                            <button
+                                onClick={() => setFilterType('Eigen')}
+                                className={`px-3 py-2 rounded-lg text-sm transition-all flex items-center gap-1 ${
+                                    filterType === 'Eigen'
+                                        ? typeConfig['Eigen'].activeColor
+                                        : typeConfig['Eigen'].color + ' hover:opacity-80'
+                                }`}
+                            >
+                                {typeConfig['Eigen'].icon} Eigen ({typeCounts['Eigen']})
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Zoekbalk */}
+                    <div className="mb-6">
+                        <input
+                            type="text"
+                            value={zoekterm}
+                            onChange={(e) => setZoekterm(e.target.value)}
+                            placeholder="Zoek op naam of ingrediënt..."
+                            className="w-full px-4 py-2 rounded-lg border border-fb-stone bg-white focus:border-fb-duck focus:ring-2 focus:ring-fb-skylight outline-none text-fb-deep"
+                        />
+                    </div>
+
+                    <p className="text-sm text-fb-hague/60 mb-4">
+                        {gefilterd.length} {gefilterd.length === 1 ? 'recept' : 'recepten'} gevonden
+                    </p>
+
+                    {/* Recepten grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {gefilterd.map(recept => (
+                            <div
+                                key={recept.isEigen ? `eigen-${recept.id}` : recept.id}
+                                className="border rounded-xl p-4 transition-all border-fb-stone/50 bg-white hover:border-fb-sage hover:shadow-md"
+                            >
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-1">
+                                        <h4 className="font-serif text-lg text-fb-deep">{recept.naam}</h4>
+                                        <div className="flex flex-wrap gap-2 mt-1">
+                                            <span className={`text-xs px-2 py-1 rounded-full ${typeConfig[recept.type]?.color || 'bg-fb-beige text-fb-hague'}`}>
+                                                {typeConfig[recept.type]?.icon} {recept.type}
+                                            </span>
+                                            {recept.categorie && recept.categorie !== 'Eigen' && (
+                                                <span className="text-xs bg-fb-skylight text-fb-hague px-2 py-1 rounded-full">
+                                                    {recept.categorie}
+                                                </span>
+                                            )}
+                                            {recept.bereidingstijd && recept.bereidingstijd !== '-' && (
+                                                <span className="text-xs bg-fb-sand/40 text-fb-deep px-2 py-1 rounded-full">
+                                                    ⏱️ {recept.bereidingstijd}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1 ml-2">
+                                        <button
+                                            onClick={() => onSelectRecept(recept.naam)}
+                                            className="bg-fb-olive hover:bg-fb-forest text-white px-3 py-1 rounded-lg text-sm transition-colors"
+                                            title="Toevoegen aan weekplanner"
+                                        >
+                                            📅 Inplannen
+                                        </button>
+                                        {recept.isEigen && (
+                                            <button
+                                                onClick={() => handleBewerken(recept)}
+                                                className="text-fb-duck hover:bg-fb-skylight px-2 py-1 rounded text-sm transition-colors"
+                                                title="Bewerken"
+                                            >
+                                                ✏️
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => recept.isEigen ? handleReceptVerwijderen(recept.id) : handleVerwijderUitLijst(recept)}
+                                            className="text-fb-wine hover:bg-fb-terracotta/20 px-2 py-1 rounded text-sm transition-colors"
+                                            title="Verwijderen"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Bewerk formulier */}
+                                {bewerkRecept?.id === recept.id && recept.isEigen && (
+                                    <div className="mt-3 p-3 bg-fb-beige/50 rounded-lg">
+                                        <input
+                                            type="text"
+                                            value={bewerkRecept.naam}
+                                            onChange={(e) => setBewerkRecept(prev => ({ ...prev, naam: e.target.value }))}
+                                            className="w-full px-3 py-2 rounded-lg border border-fb-sage focus:border-fb-olive outline-none mb-2"
+                                        />
+                                        <textarea
+                                            value={bewerkRecept.ingredienten}
+                                            onChange={(e) => setBewerkRecept(prev => ({ ...prev, ingredienten: e.target.value }))}
+                                            rows={4}
+                                            className="w-full px-3 py-2 rounded-lg border border-fb-sage focus:border-fb-olive outline-none resize-none mb-2"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={handleOpslaanBewerking}
+                                                className="bg-fb-olive hover:bg-fb-forest text-white px-3 py-1 rounded-lg text-sm"
+                                            >
+                                                Opslaan
+                                            </button>
+                                            <button
+                                                onClick={() => setBewerkRecept(null)}
+                                                className="bg-fb-stone/50 hover:bg-fb-stone text-fb-hague px-3 py-1 rounded-lg text-sm"
+                                            >
+                                                Annuleren
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {bewerkRecept?.id !== recept.id && (
+                                    <>
+                                        <details className="mt-3">
+                                            <summary className="text-sm text-fb-duck cursor-pointer hover:text-fb-hague">
+                                                Bekijk ingrediënten ({recept.ingredienten.length})
+                                            </summary>
+                                            <ul className="mt-2 text-sm text-fb-hague/80 space-y-1 pl-2">
+                                                {recept.ingredienten.map((ingredient, idx) => (
+                                                    <li key={idx} className="flex items-center gap-2">
+                                                        <span className="text-fb-sage text-xs">●</span>
+                                                        {ingredient}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </details>
+
+                                        {recept.bereiding && (
+                                            <details className="mt-2">
+                                                <summary className="text-sm text-fb-hague cursor-pointer hover:text-fb-deep">
+                                                    👨‍🍳 Bekijk bereidingswijze ({recept.bereiding.length} stappen)
+                                                </summary>
+                                                <ol className="mt-2 text-sm text-fb-hague/80 space-y-2 pl-2">
+                                                    {recept.bereiding.map((stap, idx) => (
+                                                        <li key={idx} className="flex gap-2">
+                                                            <span className="bg-fb-skylight text-fb-hague rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+                                                                {idx + 1}
+                                                            </span>
+                                                            <span>{stap}</span>
+                                                        </li>
+                                                    ))}
+                                                </ol>
+                                            </details>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    {gefilterd.length === 0 && (
+                        <div className="text-center py-8 text-fb-hague/60">
+                            Geen recepten gevonden. Probeer een andere zoekterm of filter.
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Boodschappenlijst Component
+        function Boodschappenlijst({ maaltijden, recepten }) {
+            const [afgevinkt, setAfgevinkt] = useState({});
+
+            const boodschappen = useMemo(() => {
+                const ingredientenMap = new Map();
+
+                Object.values(maaltijden).forEach(maaltijd => {
+                    if (!maaltijd) return;
+
+                    // Zoek of er een recept is met deze naam
+                    const recept = recepten.find(r =>
+                        r.naam.toLowerCase() === maaltijd.toLowerCase()
+                    );
+
+                    if (recept) {
+                        recept.ingredienten.forEach(ingredient => {
+                            const key = ingredient.toLowerCase();
+                            if (ingredientenMap.has(key)) {
+                                ingredientenMap.get(key).count++;
+                            } else {
+                                ingredientenMap.set(key, { naam: ingredient, count: 1 });
+                            }
+                        });
+                    }
+                });
+
+                return Array.from(ingredientenMap.values());
+            }, [maaltijden, recepten]);
+
+            const toggleAfgevinkt = (naam) => {
+                setAfgevinkt(prev => ({
+                    ...prev,
+                    [naam]: !prev[naam]
+                }));
+            };
+
+            const aantalAfgevinkt = Object.values(afgevinkt).filter(Boolean).length;
+
+            return (
+                <div className="bg-fb-cream rounded-2xl shadow-lg p-6 border border-fb-stone/30">
+                    <h2 className="text-2xl font-serif text-fb-hague mb-4 flex items-center gap-2">
+                        <span>🛒</span> Boodschappenlijst
+                    </h2>
+
+                    {boodschappen.length === 0 ? (
+                        <div className="text-center py-8">
+                            <p className="text-fb-hague/70 mb-2">Nog geen boodschappen.</p>
+                            <p className="text-sm text-fb-hague/50">
+                                Tip: Plan maaltijden die overeenkomen met je opgeslagen recepten om automatisch een boodschappenlijst te genereren.
+                            </p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="mb-4 flex justify-between items-center">
+                                <span className="text-sm text-fb-hague/60">
+                                    {aantalAfgevinkt} van {boodschappen.length} items afgevinkt
+                                </span>
+                                <button
+                                    onClick={() => setAfgevinkt({})}
+                                    className="text-sm text-fb-duck hover:text-fb-hague"
+                                >
+                                    Reset
+                                </button>
+                            </div>
+
+                            <div className="h-2 bg-fb-beige rounded-full mb-4 overflow-hidden">
+                                <div
+                                    className="h-full bg-fb-olive transition-all duration-300"
+                                    style={{ width: `${(aantalAfgevinkt / boodschappen.length) * 100}%` }}
+                                />
+                            </div>
+
+                            <ul className="space-y-2">
+                                {boodschappen.map((item, idx) => (
+                                    <li
+                                        key={idx}
+                                        onClick={() => toggleAfgevinkt(item.naam)}
+                                        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                                            afgevinkt[item.naam]
+                                                ? 'bg-fb-beige text-fb-stone'
+                                                : 'bg-fb-mint/30 hover:bg-fb-mint/50'
+                                        }`}
+                                    >
+                                        <span className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                            afgevinkt[item.naam]
+                                                ? 'bg-fb-olive border-fb-olive text-white'
+                                                : 'border-fb-stone'
+                                        }`}>
+                                            {afgevinkt[item.naam] && '✓'}
+                                        </span>
+                                        <span className={`text-fb-deep ${afgevinkt[item.naam] ? 'line-through text-fb-stone' : ''}`}>
+                                            {item.naam}
+                                        </span>
+                                        {item.count > 1 && (
+                                            <span className="ml-auto text-xs bg-fb-sage/50 text-fb-forest px-2 py-1 rounded-full">
+                                                ×{item.count}
+                                            </span>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </>
+                    )}
+                </div>
+            );
+        }
+
+        // Weekplanner Component
+        function Weekplanner({ maaltijden, setMaaltijden, recepten }) {
+            const handleChange = (dag, waarde) => {
+                setMaaltijden(prev => ({
+                    ...prev,
+                    [dag]: waarde
+                }));
+            };
+
+            const handleWissen = () => {
+                const leeg = {};
+                DAGEN.forEach(dag => {
+                    leeg[dag] = '';
+                });
+                setMaaltijden(leeg);
+            };
+
+            const receptNamen = recepten.map(r => r.naam);
+
+            return (
+                <div className="bg-fb-cream rounded-2xl shadow-lg p-6 border border-fb-stone/30">
+                    <h2 className="text-2xl font-serif text-fb-hague mb-4 flex items-center gap-2">
+                        <span>📅</span> Weekplanning
+                    </h2>
+                    <p className="text-fb-hague/70 mb-6">
+                        Plan je maaltijden voor de week. Kies een opgeslagen recept of typ een eigen maaltijd.
+                    </p>
+
+                    <div className="space-y-3">
+                        {DAGEN.map(dag => (
+                            <div
+                                key={dag}
+                                className="flex items-center gap-4 p-3 rounded-xl bg-gradient-to-r from-fb-mint/30 to-transparent hover:from-fb-mint/50 transition-colors"
+                            >
+                                <span className="w-28 font-serif text-fb-forest">{dag}</span>
+                                <div className="flex-1 relative">
+                                    <input
+                                        type="text"
+                                        list={`recepten-${dag}`}
+                                        value={maaltijden[dag]}
+                                        onChange={(e) => handleChange(dag, e.target.value)}
+                                        placeholder="Selecteer of typ een maaltijd..."
+                                        className="w-full px-4 py-2 rounded-lg border border-fb-stone bg-white focus:border-fb-duck focus:ring-2 focus:ring-fb-skylight outline-none transition-all text-fb-deep"
+                                    />
+                                    <datalist id={`recepten-${dag}`}>
+                                        {receptNamen.map(naam => (
+                                            <option key={naam} value={naam} />
+                                        ))}
+                                    </datalist>
+                                </div>
+                                {maaltijden[dag] && receptNamen.includes(maaltijden[dag]) && (
+                                    <span className="text-fb-olive" title="Gekoppeld aan recept">📖</span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="mt-6 flex justify-end">
+                        <button
+                            onClick={handleWissen}
+                            className="bg-fb-terracotta/20 hover:bg-fb-terracotta/40 text-fb-wine px-4 py-2 rounded-lg transition-colors"
+                        >
+                            🗑️ Week wissen
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Hoofd App Component
+        function App() {
+            const [activeTab, setActiveTab] = useState('planner');
+            const [selectedDag, setSelectedDag] = useState(null);
+
+            const [maaltijden, setMaaltijden] = useState(() => {
+                const opgeslagen = localStorage.getItem(STORAGE_KEYS.maaltijden);
+                if (opgeslagen) {
+                    return JSON.parse(opgeslagen);
+                }
+                const init = {};
+                DAGEN.forEach(dag => {
+                    init[dag] = '';
+                });
+                return init;
+            });
+
+            const [recepten, setRecepten] = useState(() => {
+                const opgeslagen = localStorage.getItem(STORAGE_KEYS.recepten);
+                if (opgeslagen) {
+                    return JSON.parse(opgeslagen);
+                }
+                return [];
+            });
+
+            useEffect(() => {
+                localStorage.setItem(STORAGE_KEYS.maaltijden, JSON.stringify(maaltijden));
+            }, [maaltijden]);
+
+            useEffect(() => {
+                localStorage.setItem(STORAGE_KEYS.recepten, JSON.stringify(recepten));
+            }, [recepten]);
+
+            const handleSelectRecept = (receptNaam) => {
+                // Zoek de eerste lege dag of vraag welke dag
+                const legeDag = DAGEN.find(dag => !maaltijden[dag]);
+                if (legeDag) {
+                    setMaaltijden(prev => ({
+                        ...prev,
+                        [legeDag]: receptNaam
+                    }));
+                    setActiveTab('planner');
+                } else {
+                    alert('Alle dagen zijn al gevuld. Verwijder eerst een maaltijd.');
+                }
+            };
+
+            const tabs = [
+                { id: 'planner', label: 'Weekplanner', icon: '📅' },
+                { id: 'recepten', label: 'Recepten', icon: '📖' },
+                { id: 'boodschappen', label: 'Boodschappen', icon: '🛒' }
+            ];
+
+            return (
+                <div className="max-w-4xl mx-auto p-4 sm:p-6">
+                    {/* Header */}
+                    <header className="text-center mb-8">
+                        <h1 className="font-serif text-4xl font-bold text-fb-hague mb-2">
+                            🍽️ Maaltijdplanner
+                        </h1>
+                        <p className="text-fb-olive">
+                            Plan je week, beheer recepten en genereer je boodschappenlijst
+                        </p>
+                    </header>
+
+                    {/* Tabs */}
+                    <nav className="flex gap-2 mb-6 bg-white/80 backdrop-blur rounded-xl p-2 shadow-md border border-fb-stone/30">
+                        {tabs.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
+                                    activeTab === tab.id
+                                        ? 'bg-fb-hague text-white shadow-md'
+                                        : 'text-fb-hague/70 hover:bg-fb-skylight/50'
+                                }`}
+                            >
+                                <span>{tab.icon}</span>
+                                <span className="hidden sm:inline">{tab.label}</span>
+                            </button>
+                        ))}
+                    </nav>
+
+                    {/* Content */}
+                    <main>
+                        {activeTab === 'planner' && (
+                            <Weekplanner
+                                maaltijden={maaltijden}
+                                setMaaltijden={setMaaltijden}
+                                recepten={recepten}
+                            />
+                        )}
+                        {activeTab === 'recepten' && (
+                            <Recepten
+                                recepten={recepten}
+                                setRecepten={setRecepten}
+                                onSelectRecept={handleSelectRecept}
+                            />
+                        )}
+                        {activeTab === 'boodschappen' && (
+                            <Boodschappenlijst
+                                maaltijden={maaltijden}
+                                recepten={recepten}
+                            />
+                        )}
+                    </main>
+
+                    {/* Footer */}
+                    <footer className="text-center mt-8 text-sm text-fb-olive/70">
+                        Gegevens worden automatisch opgeslagen in je browser
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
